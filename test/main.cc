@@ -57,7 +57,8 @@ public:
   rpc_handle *rpc;
   int node_id, thread_id;
   int instance_id; /* instance id used to create the rpcs */
-  ;
+
+  uint64_t enqueued_msgs_cnt = 0;
   /* map of <node_id, session_num> that maintains connections */
   std::unordered_map<int, int> connections;
 
@@ -67,19 +68,23 @@ public:
     buffs->alloc_resp_buf(kMsgSize);
 
     // construct message
-    auto *msg_buf = new msg();
+    auto msg_buf = std::make_unique<msg>();
     msg_buf->hdr.src_node = node_id;
     msg_buf->hdr.dest_node = dest_id;
     msg_buf->hdr.seq_idx = idx;
     msg_buf->hdr.msg_size = kMsgSize;
-    ::memcpy(buffs->req.buf, msg_buf, sizeof(msg));
+    ::memcpy(buffs->req.buf, msg_buf.get(), sizeof(msg));
 
     // enqueu_req
     rpc->enqueue_request(connections[dest_id], kReq, &(buffs->req),
                          &(buffs->resp), cont_func, buffs);
+    enqueued_msgs_cnt++;
   }
 
-  void poll() { rpc->run_event_loop(100); }
+  void poll() {
+    if (enqueued_msgs_cnt % 1000 == 0)
+      rpc->run_event_loop(100);
+  }
 
   void create_session(const std::string &uri, int rem_node_id) {
     rpc->retry_connect_on_invalid_rpc_id = true;
@@ -115,8 +120,7 @@ void head_func(std::shared_ptr<app_context> &ctx, const std::string &uri) {
   ctx->rpc->run_event_loop(100);
   for (auto i = 0ULL; i < 10e6; i++) {
     ctx->send_req(i, 1);
-    if ((i % 1000) == 0)
-      ctx->poll();
+    ctx->poll();
   }
 }
 
@@ -125,10 +129,9 @@ void tail_func(std::shared_ptr<app_context> &ctx, const std::string &uri) {
              __PRETTY_FUNCTION__, ctx->instance_id, ctx->thread_id, uri);
   ctx->create_session(uri, 0 /* node 0 */);
   ctx->rpc->run_event_loop(100);
-  for (auto i = 0ULL; i < 10e6; i++) {
+  for (auto i = 0ULL; i < 5e6; i++) {
     ctx->send_req(i, 0);
-    if ((i % 1000) == 0)
-      ctx->poll();
+    ctx->poll();
   }
 }
 void middle_func(std::shared_ptr<app_context> &ctx, const std::string &uri1,
@@ -163,22 +166,21 @@ void ctrl_c_handler(int) {
 
 void req_handler(erpc::ReqHandle *req_handle,
                  void *_ctx /*TODO: appcontext */) {
+  static uint64_t count = 0;
   auto *ctx = reinterpret_cast<app_context *>(_ctx);
   auto &resp = req_handle->pre_resp_msgbuf;
-  static uint64_t count = 0;
-#if 1
   // construct message
   uint8_t *recv_data =
       reinterpret_cast<uint8_t *>(req_handle->get_req_msgbuf()->buf);
-  auto *msg_buf = new msg();
-  ::memcpy(msg_buf, recv_data, sizeof(msg::header));
+  auto msg_buf = std::make_unique<msg>();
+  ::memcpy(msg_buf.get(), recv_data, sizeof(msg::header));
   ctx->rpc->resize_msg_buffer(&resp, kMsgSize);
-  fmt::print("[{}] msg_count={}\tidx={}\tnode_id={}\tdest_node={}\r",
-             __PRETTY_FUNCTION__, count++, msg_buf->hdr.seq_idx,
-             msg_buf->hdr.src_node, msg_buf->hdr.dest_node);
+  if (count % 10000 == 0)
+    fmt::print("[{}]\tmsg_count={}\tidx={}\tnode_id={}\tdest_node={}\n",
+               __PRETTY_FUNCTION__, count, msg_buf->hdr.seq_idx,
+               msg_buf->hdr.src_node, msg_buf->hdr.dest_node);
+  count++;
   ctx->rpc->enqueue_response(req_handle, &resp);
-  delete msg_buf;
-#endif
 }
 
 int main(int args, char *argv[]) {
