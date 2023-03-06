@@ -1,4 +1,4 @@
-
+#include <fmt/printf.h>
 
 struct msg {
   static constexpr size_t key_sz = 8;
@@ -13,4 +13,61 @@ struct msg {
   header hdr;
   uint8_t key[key_sz];
   uint8_t value[value_sz];
+};
+
+
+
+
+
+struct msg_manager {
+	static constexpr size_t batch_count = 1;
+	msg_manager() {
+		buffer = std::make_unique<uint8_t>(batch_count*sizeof(msg));
+	};
+	
+	bool enqueue_req(uint8_t* buf, size_t buf_sz) {
+		if (buf_sz != sizeof(msg))
+			fmt::print("[{}] buf_sz != sizeof(msg)\n", __PRETTY_FUNCTION__);
+		if (cur_idx < batch_count)
+			::memcpy(buffer.get() + cur_idx*sizeof(msg), buf, buf_sz);
+		else
+			return false;
+		cur_idx++;
+		return true;
+	}
+
+	uint8_t* serialize_batch() {
+		return buffer.get();
+	}
+
+	void empty_buff() {
+		cur_idx = 0;
+	}
+
+	static std::unique_ptr<uint8_t> deserialize(uint8_t* buf, size_t buf_sz) {
+		if (buf_sz != sizeof(msg)*batch_count)
+			fmt::print("[{}] buf_sz != batch_count*sizeof(msg)\n", __PRETTY_FUNCTION__);
+		auto data = std::make_unique<uint8_t>(buf_sz);
+		::memcpy(data.get(), buf, buf_sz);
+		return std::move(data);
+	}
+	
+	static void print_batched(std::unique_ptr<uint8_t> msgs, size_t sz) {
+		fmt::print("{}\n", __func__);
+		int min_idx = -1, max_idx = -1;
+		for (auto i = 0ULL; i < batch_count; i++) {
+			auto msg_data = std::make_unique<msg>();
+			::memcpy(reinterpret_cast<uint8_t*>(msg_data.get()), msgs.get() + i*sizeof(msg), sizeof(msg::header));
+			if (i == 0)
+				min_idx = msg_data->hdr.seq_idx;
+			if (i == 9)
+				max_idx = msg_data->hdr.seq_idx;
+		}
+		fmt::print("[{}] min_idx={}\tmax_idx={}\n", __PRETTY_FUNCTION__, min_idx, max_idx);
+	}
+
+
+	std::unique_ptr<uint8_t> buffer;
+	uint32_t cur_idx = 0;
+
 };
