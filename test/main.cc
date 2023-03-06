@@ -26,6 +26,31 @@ DEFINE_uint64(instance_id, 0, "Instance id (this is to properly set the RPCs");
 
 using rpc_handle = erpc::Rpc<erpc::CTransport>;
 
+struct rpc_buffs {
+  explicit rpc_buffs(rpc_handle *_rpc) : rpc(_rpc){};
+  erpc::MsgBuffer req;
+  erpc::MsgBuffer resp;
+  rpc_handle *rpc = nullptr;
+
+  void alloc_req_buf(size_t sz) { req = rpc->alloc_msg_buffer_or_die(sz); }
+
+  void alloc_resp_buf(size_t sz) { resp = rpc->alloc_msg_buffer_or_die(sz); }
+
+  ~rpc_buffs() {
+    rpc->free_msg_buffer(req);
+    rpc->free_msg_buffer(resp);
+  }
+};
+
+class app_context;
+
+static void cont_func(void *_ctx, void *_tag) {
+  auto *ctx = reinterpret_cast<app_context *>(_ctx);
+  auto *tag = reinterpret_cast<rpc_buffs *>(_tag);
+
+  delete tag;
+}
+
 class app_context {
 public:
   app_context() = default;
@@ -35,6 +60,26 @@ public:
   ;
   /* map of <node_id, session_num> that maintains connections */
   std::unordered_map<int, int> connections;
+
+  void send_req(int idx, int dest_id) {
+    auto *buffs = new rpc_buffs(rpc);
+    buffs->alloc_req_buf(kMsgSize);
+    buffs->alloc_resp_buf(kMsgSize);
+
+    // construct message
+    auto *msg_buf = new msg();
+    msg_buf->hdr.src_node = node_id;
+    msg_buf->hdr.dest_node = dest_id;
+    msg_buf->hdr.seq_idx = idx;
+    msg_buf->hdr.msg_size = kMsgSize;
+    ::memcpy(buffs->req.buf, msg_buf, sizeof(msg));
+
+    // enqueu_req
+    rpc->enqueue_request(connections[dest_id], kReq, &(buffs->req),
+                         &(buffs->resp), cont_func, buffs);
+  }
+
+  void poll() { rpc->run_event_loop(100); }
 
   void create_session(const std::string &uri, int rem_node_id) {
     rpc->retry_connect_on_invalid_rpc_id = true;
@@ -67,29 +112,33 @@ void head_func(std::shared_ptr<app_context> &ctx, const std::string &uri) {
   fmt::print("[{}]\tinstance_id={}\tthread_id={}\turi={}.\n",
              __PRETTY_FUNCTION__, ctx->instance_id, ctx->thread_id, uri);
   ctx->create_session(uri, 1 /* node 1 */);
-  ctx->rpc->run_event_loop(100000);
+  ctx->rpc->run_event_loop(100);
+  for (auto i = 0ULL; i < 10e6; i++) {
+    ctx->send_req(i, 1);
+    if ((i % 1000) == 0)
+      ctx->poll();
+  }
 }
 
 void tail_func(std::shared_ptr<app_context> &ctx, const std::string &uri) {
   fmt::print("[{}]\tinstance_id={}\tthread_id={}\turi={}.\n",
              __PRETTY_FUNCTION__, ctx->instance_id, ctx->thread_id, uri);
-  ctx->rpc->run_event_loop(100);
   ctx->create_session(uri, 0 /* node 0 */);
-  ctx->rpc->run_event_loop(100000);
+  ctx->rpc->run_event_loop(100);
+  for (auto i = 0ULL; i < 10e6; i++) {
+    ctx->send_req(i, 0);
+    if ((i % 1000) == 0)
+      ctx->poll();
+  }
 }
 void middle_func(std::shared_ptr<app_context> &ctx, const std::string &uri1,
                  const std::string &uri2) {}
-
-static void sm_handler(int local_session, erpc::SmEventType, erpc::SmErrType,
-                       void *) {
-
-  // fmt::print("[{}].\n", __PRETTY_FUNCTION__);
-}
 
 void proto_func(size_t thread_id, erpc::Nexus *nexus) {
   fmt::print("[{}]\tthread_id={} starts\n", __PRETTY_FUNCTION__, thread_id);
   auto ctx = std::make_shared<app_context>();
   ctx->instance_id = FLAGS_instance_id;
+  ctx->node_id = FLAGS_process_id;
   ctx->rpc = new rpc_handle(nexus, static_cast<void *>(ctx.get()),
                             ctx->instance_id, sm_handler);
 
@@ -112,13 +161,23 @@ void ctrl_c_handler(int) {
   exit(1);
 }
 
-void req_handler(erpc::ReqHandle *req_handle, void * /*TODO: appcontext */) {
+void req_handler(erpc::ReqHandle *req_handle,
+                 void *_ctx /*TODO: appcontext */) {
+  auto *ctx = reinterpret_cast<app_context *>(_ctx);
   auto &resp = req_handle->pre_resp_msgbuf;
-#if 0
-	rpc->resize_msg_buffer(&resp, kMsgSize);
-	sprintf(reinterpret_cast<char *>(resp.buf), "hello");
-
-	rpc->enqueue_response(req_handle, &resp);
+  static uint64_t count = 0;
+#if 1
+  // construct message
+  uint8_t *recv_data =
+      reinterpret_cast<uint8_t *>(req_handle->get_req_msgbuf()->buf);
+  auto *msg_buf = new msg();
+  ::memcpy(msg_buf, recv_data, sizeof(msg::header));
+  ctx->rpc->resize_msg_buffer(&resp, kMsgSize);
+  fmt::print("[{}] msg_count={}\tidx={}\tnode_id={}\tdest_node={}\r",
+             __PRETTY_FUNCTION__, count++, msg_buf->hdr.seq_idx,
+             msg_buf->hdr.src_node, msg_buf->hdr.dest_node);
+  ctx->rpc->enqueue_response(req_handle, &resp);
+  delete msg_buf;
 #endif
 }
 
