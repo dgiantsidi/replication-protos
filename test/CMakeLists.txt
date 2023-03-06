@@ -4,7 +4,12 @@
 cmake_minimum_required (VERSION 2.8.11)
 project (test)
 
-SET(CMAKE_CXX_FLAGS  "-DERPC_INFINIBAND=true")
+link_directories($ENV{HOME}/workspace/replication-protos/eRPC/build)
+link_directories($ENV{HOME}/workspace/replication-protos/dpdk-stable-19.11.14/usr/lib)
+include_directories($ENV{HOME}/workspace/replication-protos/eRPC/src)
+include_directories($ENV{HOME}/workspace/replication-protos/dpdk-stable-19.11.14/x86_64-native-linuxapp-gcc/include)
+
+SET(CMAKE_CXX_FLAGS  "-DERPC_DPDK=true")
 find_library(FMT_lib fmt)
 if(NOT FMT_lib)
     message(STATUS "fmt library not found")
@@ -12,12 +17,6 @@ endif()
 
 add_executable(cr main.cc $ENV{HOME}/workspace/replication-protos/eRPC/build/src/config.h)
 
-target_include_directories(cr PUBLIC $ENV{HOME}/workspace/replication-protos/eRPC/third_party/asio/include)
-target_include_directories(cr PUBLIC $ENV{HOME}/workspace/replication-protos/eRPC/build)
-target_link_directories(cr PUBLIC $ENV{HOME}/workspace/replication-protos/eRPC/build)
-# target_include_directories(cr PUBLIC $ENV{HOME}/workspace/replication-protos/eRPC/build/src)
-target_include_directories(cr PUBLIC $ENV{HOME}/workspace/replication-protos/eRPC/src)
 
-target_link_libraries(cr -lpthread)
-target_link_libraries(cr -lfmt -lnuma -lgflags)
-target_link_libraries(cr -l:liberpc.a)
+
+target_link_libraries(cr -lpthread -lfmt -lnuma -lerpc -lgflags -ldl -Wl,--whole-archive -ldpdk -Wl,--no-whole-archive -lrte_ethdev -Wl,-lrte_port)
