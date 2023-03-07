@@ -180,7 +180,7 @@ void tail_func(app_context *ctx, const std::string &uri) {
     send_req(i, 0, ctx);
     poll(ctx);
   }
-  flash_batcher(1, ctx);
+  flash_batcher(0, ctx);
   fmt::print("{} polls until the end ...\n", __func__);
   for (;;)
     ctx->rpc->run_event_loop_once();
