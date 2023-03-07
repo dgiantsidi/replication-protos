@@ -16,9 +16,9 @@ struct msg {
 };
 
 struct msg_manager {
-  static constexpr size_t batch_count = 1;
+  static constexpr size_t batch_count = 16;
   msg_manager() {
-    buffer = std::make_unique<uint8_t>(batch_count * sizeof(msg));
+    buffer = std::make_unique<uint8_t[]>(batch_count * sizeof(msg));
     fmt::print("sizeof(msg)={}\n", sizeof(msg));
   };
 
@@ -40,17 +40,16 @@ struct msg_manager {
     cur_idx = 0;
   }
 
-  static std::unique_ptr<uint8_t> deserialize(uint8_t *buf, size_t buf_sz) {
+  static std::unique_ptr<uint8_t[]> deserialize(uint8_t *buf, size_t buf_sz) {
     if (buf_sz != sizeof(msg) * batch_count)
       fmt::print("[{}] buf_sz != batch_count*sizeof(msg)\n",
                  __PRETTY_FUNCTION__);
-    auto data = std::make_unique<uint8_t>(buf_sz);
+    auto data = std::make_unique<uint8_t[]>(buf_sz);
     ::memcpy(data.get(), buf, buf_sz);
     return std::move(data);
   }
 
-  static void print_batched(std::unique_ptr<uint8_t> msgs, size_t sz) {
-    fmt::print("{}\n", __func__);
+  static void print_batched(std::unique_ptr<uint8_t[]> msgs, size_t sz) {
     int min_idx = -1, max_idx = -1;
     for (auto i = 0ULL; i < batch_count; i++) {
       auto msg_data = std::make_unique<msg>();
@@ -58,13 +57,13 @@ struct msg_manager {
                msgs.get() + i * sizeof(msg), sizeof(msg::header));
       if (i == 0)
         min_idx = msg_data->hdr.seq_idx;
-      if (i == 9)
+      if (i == (batch_count - 1))
         max_idx = msg_data->hdr.seq_idx;
     }
     fmt::print("[{}] min_idx={}\tmax_idx={}\n", __PRETTY_FUNCTION__, min_idx,
                max_idx);
   }
 
-  std::unique_ptr<uint8_t> buffer;
+  std::unique_ptr<uint8_t[]> buffer;
   uint32_t cur_idx = 0;
 };
