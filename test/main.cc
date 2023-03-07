@@ -83,7 +83,6 @@ static void cont_func(void *context, void *t) {
   delete tag;
 }
 void send_req(int idx, int dest_id, app_context *ctx) {
-  // fmt::print("{} send idx={}\n", __func__, idx);
   // construct message
   auto msg_buf = std::make_unique<msg>();
   msg_buf->hdr.src_node = ctx->node_id;
@@ -106,8 +105,23 @@ void send_req(int idx, int dest_id, app_context *ctx) {
     ctx->batcher->empty_buff();
     ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
                               sizeof(msg));
+    //    fmt::print("{} idx={}\n", __func__, idx);
     ctx->enqueued_msgs_cnt++;
   }
+}
+
+void flash_batcher(int dest_id, app_context *ctx) {
+  // needs to send
+  rpc_buffs *buffs = new rpc_buffs();
+  buffs->alloc_req_buf(sizeof(msg) * ctx->batcher->cur_idx, ctx->rpc);
+  buffs->alloc_resp_buf(kMsgSize, ctx->rpc);
+
+  ::memcpy(buffs->req.buf, ctx->batcher->serialize_batch(),
+           sizeof(msg) * ctx->batcher->cur_idx);
+  // enqueue_req
+  ctx->rpc->enqueue_request(ctx->connections[dest_id], kReq, &buffs->req,
+                            &buffs->resp, cont_func,
+                            reinterpret_cast<void *>(buffs));
 }
 
 void poll(app_context *ctx) {
@@ -118,7 +132,9 @@ void poll(app_context *ctx) {
   if (ctx->enqueued_msgs_cnt % 2 == 10)
     ctx->rpc->run_event_loop(1);
 }
-//  void poll_once() { rpc->run_event_loop(100); }
+[[maybe_unused]] void poll_once(app_context *ctx) {
+  ctx->rpc->run_event_loop(100);
+}
 
 void create_session(const std::string &uri, int rem_node_id, app_context *ctx) {
   ctx->rpc->retry_connect_on_invalid_rpc_id = true;
@@ -145,10 +161,11 @@ void head_func(app_context *ctx, const std::string &uri) {
              __PRETTY_FUNCTION__, ctx->instance_id, ctx->thread_id, uri);
   create_session(uri, 1 /* node 1 */, ctx);
   ctx->rpc->run_event_loop(100);
-  for (auto i = 0ULL; i < 15e6; i++) {
+  for (auto i = 0ULL; i < 40e6; i++) {
     send_req(i, 1, ctx);
     poll(ctx);
   }
+  flash_batcher(1, ctx);
   fmt::print("{} polls until the end ...\n", __func__);
   for (;;)
     ctx->rpc->run_event_loop_once();
@@ -159,10 +176,11 @@ void tail_func(app_context *ctx, const std::string &uri) {
              __PRETTY_FUNCTION__, ctx->instance_id, ctx->thread_id, uri);
   create_session(uri, 0 /* node 0 */, ctx);
   ctx->rpc->run_event_loop(100);
-  for (auto i = 0ULL; i < 15e6; i++) {
+  for (auto i = 0ULL; i < 40e6; i++) {
     send_req(i, 0, ctx);
     poll(ctx);
   }
+  flash_batcher(1, ctx);
   fmt::print("{} polls until the end ...\n", __func__);
   for (;;)
     ctx->rpc->run_event_loop_once();
@@ -218,6 +236,8 @@ void req_handler(erpc::ReqHandle *req_handle,
 				msg_buf->hdr.src_node, msg_buf->hdr.dest_node);
 #endif
   }
+  if (count == 40e6 / 16 - 1)
+    fmt::print("{} final count={}\n", __func__, count);
   count++;
 
   /* enqueue ack */
@@ -227,11 +247,12 @@ void req_handler(erpc::ReqHandle *req_handle,
   if (ctx == nullptr) {
     fmt::print("{} ctx==nullptr \n", __func__);
     using namespace std::chrono_literals;
-    // std::this_thread::sleep_for(10000ms);
-    return;
+    std::this_thread::sleep_for(10000ms);
   }
   if (ctx->rpc == nullptr) {
     fmt::print("ctx->rpc==nullptr\n", __func__);
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(10000ms);
   }
   ctx->rpc->resize_msg_buffer(&resp, kMsgSize);
   ctx->rpc->enqueue_response(req_handle, &resp);
@@ -256,7 +277,7 @@ int main(int args, char *argv[]) {
   std::vector<std::thread> threads;
   for (size_t i = 0; i < num_threads; i++) {
     threads.emplace_back(std::thread(proto_func, i, &nexus));
-    //   erpc::bind_to_core(threads[i], numa_node, i);
+    erpc::bind_to_core(threads[i], numa_node, i);
   }
 
   for (auto &thread : threads)
