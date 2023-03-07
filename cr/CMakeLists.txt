@@ -16,7 +16,13 @@ if(NOT FMT_lib)
 endif()
 
 add_executable(cr main.cc $ENV{HOME}/workspace/replication-protos/eRPC/build/src/config.h)
+add_executable(cr_donna main.cc $ENV{HOME}/workspace/replication-protos/eRPC/build/src/config.h)
+add_executable(cr_rose main.cc $ENV{HOME}/workspace/replication-protos/eRPC/build/src/config.h)
+add_executable(cr_martha main.cc $ENV{HOME}/workspace/replication-protos/eRPC/build/src/config.h)
 
 
 
 target_link_libraries(cr -lpthread -lfmt -lnuma -lerpc -lgflags -ldl -Wl,--whole-archive -ldpdk -Wl,--no-whole-archive -lrte_ethdev -Wl,-lrte_port -fsanitize=address)
+target_link_libraries(cr_donna -lpthread -lfmt -lnuma -lerpc -lgflags -ldl -Wl,--whole-archive -ldpdk -Wl,--no-whole-archive -lrte_ethdev -Wl,-lrte_port -fsanitize=address)
+target_link_libraries(cr_rose -lpthread -lfmt -lnuma -lerpc -lgflags -ldl -Wl,--whole-archive -ldpdk -Wl,--no-whole-archive -lrte_ethdev -Wl,-lrte_port -fsanitize=address)
+target_link_libraries(cr_martha -lpthread -lfmt -lnuma -lerpc -lgflags -ldl -Wl,--whole-archive -ldpdk -Wl,--no-whole-archive -lrte_ethdev -Wl,-lrte_port -fsanitize=address)
