@@ -9,7 +9,7 @@ link_directories($ENV{HOME}/workspace/replication-protos/dpdk-stable-19.11.14/us
 include_directories($ENV{HOME}/workspace/replication-protos/eRPC/src)
 include_directories($ENV{HOME}/workspace/replication-protos/dpdk-stable-19.11.14/x86_64-native-linuxapp-gcc/include)
 
-SET(CMAKE_CXX_FLAGS  "-DERPC_DPDK=true")
+SET(CMAKE_CXX_FLAGS  "-DERPC_DPDK=true -g")
 find_library(FMT_lib fmt)
 if(NOT FMT_lib)
     message(STATUS "fmt library not found")
