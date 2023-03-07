@@ -86,13 +86,14 @@ struct msg_manager {
                msgs.get() + i * sizeof(msg), sizeof(msg::header));
       if (i == 0) {
         min_idx = msg_data->hdr.seq_idx;
-        prev_idx = min_idx;
-      }
-      if (i == (batch_count - 1))
+        prev_idx =
+            min_idx - 1; // I will increase it later on for this iteration
+      } else if (i == (batch_count - 1))
         max_idx = msg_data->hdr.seq_idx;
       else {
-        // if ((prev_idx + 1) != msg_data->hdr.seq_idx)
-        //  fmt::print("[{}] an error happenned here .. \n", __func__);
+        if ((prev_idx + 1) != msg_data->hdr.seq_idx)
+          fmt::print("[{}] an error happenned here .. expected={}\treal={}\n",
+                     __func__, (prev_idx + 1), msg_data->hdr.seq_idx);
       }
       prev_idx++;
     }
