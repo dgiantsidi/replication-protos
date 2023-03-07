@@ -14,7 +14,6 @@ let
       gtest
       linuxHeaders
       cmake
- #     gcc8
       valgrind
       protobuf
       vimPlugins.vim-clang-format
