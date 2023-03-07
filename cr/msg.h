@@ -76,8 +76,9 @@ struct msg_manager {
     fmt::print("[{}] min_idx={}\tmax_idx={}\n", __PRETTY_FUNCTION__, min_idx,
                max_idx);
   }
-  
-  static std::vector<int> parse_indexes(std::unique_ptr<uint8_t[]> msgs, size_t sz) {
+
+  static std::vector<int> parse_indexes(std::unique_ptr<uint8_t[]> msgs,
+                                        size_t sz) {
     int min_idx = -1, max_idx = -1, prev_idx = -1;
     for (auto i = 0ULL; i < batch_count; i++) {
       auto msg_data = std::make_unique<msg>();
@@ -85,17 +86,17 @@ struct msg_manager {
                msgs.get() + i * sizeof(msg), sizeof(msg::header));
       if (i == 0) {
         min_idx = msg_data->hdr.seq_idx;
-	prev_idx = min_idx;
+        prev_idx = min_idx;
       }
       if (i == (batch_count - 1))
         max_idx = msg_data->hdr.seq_idx;
       else {
-	      if ((prev_idx + 1) != msg_data->hdr.seq_idx) 
-		      fmt::print("[{}] an error happenned here .. \n", __func__);
-	      prev_idx++;
+        // if ((prev_idx + 1) != msg_data->hdr.seq_idx)
+        //  fmt::print("[{}] an error happenned here .. \n", __func__);
       }
+      prev_idx++;
     }
-	return std::vector<int>{min_idx, max_idx};
+    return std::vector<int>{min_idx, max_idx};
   }
 
   std::unique_ptr<uint8_t[]> buffer;
