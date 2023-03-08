@@ -16,7 +16,8 @@ struct msg {
   uint8_t value[value_sz];
 };
 
-/* message format for commits (in batched messages) */
+/* message format for acks (for messages with consecutive ids ranging from s_idx
+ * to e_idx) */
 struct cmt_msg {
   struct header {
     uint32_t src_node;
@@ -26,8 +27,8 @@ struct cmt_msg {
   };
   // msg format
   header hdr;
-  uint64_t s_cmt_idx;
-  uint64_t e_cmt_idx;
+  uint64_t s_idx;
+  uint64_t e_idx;
 };
 
 /* the batched message */

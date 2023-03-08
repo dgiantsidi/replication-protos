@@ -22,6 +22,7 @@ DEFINE_uint64(instance_id, 0,
 DEFINE_uint64(reqs_num, 200e6, "Number of reqs");
 
 using rpc_handle = erpc::Rpc<erpc::CTransport>;
+enum raft { leader = 0, follower = 1 };
 
 struct rpc_buffs {
   erpc::MsgBuffer req;
@@ -50,21 +51,27 @@ struct rpc_buffs {
 
 class app_context {
 public:
+  struct protocol_metadata {
+    int leader = raft::follower;
+    bool is_leader() { return leader == raft::leader; }
+    int cmt_idx = 0, prp_idx = 0;
+    using req_id = int;
+    using nb_acks = int;
+    std::unordered_map<req_id, nb_acks> prp_acks;
+    std::unordered_map<req_id, nb_acks> cmt_acks;
+  };
+
   rpc_handle *rpc = nullptr;
   int node_id = 0, thread_id = 0;
   int instance_id = 0; /* instance id used to create the rpcs */
   msg_manager *batcher = nullptr;
+  protocol_metadata *metadata = nullptr;
 
   uint64_t enqueued_msgs_cnt = 0;
+
   /* map of <node_id, session_num> that maintains connections */
   std::unordered_map<int, int> connections;
 
-  /* delete copy/move constructors/assignments
-     app_context(const app_context &) = delete;
-     app_context(app_context &&) = delete;
-     app_context &operator=(const app_context &) = delete;
-     app_context &operator=(app_context &&) = delete;
-     */
   ~app_context() {
     fmt::print("{} ..\n", __func__);
     delete rpc;
@@ -86,6 +93,7 @@ static void cont_func_cmt(void *context, void *t) {
 }
 
 static void cont_func_prp(void *context, void *t) {
+  static uint64_t count = 0;
   auto *ctx = static_cast<app_context *>(context);
   if (ctx == nullptr) {
     fmt::print("{} ctx==nullptr \n", __func__);
@@ -97,18 +105,22 @@ static void cont_func_prp(void *context, void *t) {
   ctx->rpc->free_msg_buffer(tag->resp);
 
   delete tag;
+  if ((count % PRINT_BATCH) == 0) {
+    fmt::print("[{}] ack-ed {} prp_reqs\n", __func__, count);
+  }
+  count++;
 }
 
 void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
   // construct message
   auto msg_buf = std::make_unique<msg>();
   msg_buf->hdr.src_node = ctx->node_id;
+  msg_buf->hdr.dest_node = -1; /* broadcast */
   msg_buf->hdr.seq_idx = idx;
   msg_buf->hdr.msg_size = kMsgSize;
   if (!ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
                                  sizeof(msg))) {
     for (auto &dest_id : dest_ids) {
-      msg_buf->hdr.dest_node = dest_id;
       // needs to send
       rpc_buffs *buffs = new rpc_buffs();
       buffs->alloc_req_buf(sizeof(msg) * msg_manager::batch_count, ctx->rpc);
@@ -172,8 +184,6 @@ void create_session(const std::string &uri, int rem_node_id, app_context *ctx) {
   ctx->rpc->run_event_loop(3000);
 }
 
-enum raft { leader = 0, follower = 1 };
-
 template <typename T>
 std::ostream &operator<<(std::ostream &os, const std::vector<T> vec) {
   os << "[";
@@ -224,6 +234,7 @@ void proto_func(size_t thread_id, erpc::Nexus *nexus) {
   fmt::print("[{}]\tthread_id={} starts\n", __PRETTY_FUNCTION__, thread_id);
   app_context *ctx = new app_context();
   ctx->batcher = new msg_manager();
+  ctx->metadata = new app_context::protocol_metadata();
   ctx->instance_id = thread_id;
   ctx->node_id = FLAGS_process_id;
   ctx->rpc = new rpc_handle(nexus, static_cast<void *>(ctx), ctx->instance_id,
@@ -265,9 +276,9 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
     // print batched
     fmt::print("{} count={}\n", __func__, count);
 #if 0
-    /* @dimitra: if you enable this you break the next line due to std::move() */
-    msg_manager::print_batched(std::move(batched_msg),
-        req_handle->get_req_msgbuf()->get_data_size());
+		/* @dimitra: if you enable this you break the next line due to std::move() */
+		msg_manager::print_batched(std::move(batched_msg),
+				req_handle->get_req_msgbuf()->get_data_size());
 #endif
   }
 
