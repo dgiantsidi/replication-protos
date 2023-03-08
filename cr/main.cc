@@ -10,7 +10,7 @@
 
 static constexpr int kReqForward = 1;
 static constexpr int kReqCommit = 2;
-static constexpr int PRINT_BATCH = 25000;
+static constexpr int PRINT_BATCH = 50000;
 static constexpr int numa_node = 0;
 
 DEFINE_uint64(num_server_threads, 1, "Number of threads at the server machine");
@@ -20,7 +20,7 @@ DEFINE_uint64(req_size, 64, "Size of request message in bytes");
 DEFINE_uint64(resp_size, 32, "Size of response message in bytes");
 DEFINE_uint64(process_id, 0, "Process id");
 DEFINE_uint64(instance_id, 0, "Instance id (this is to properly set the RPCs");
-DEFINE_uint64(reqs_num, 10000, "Number of reqs");
+DEFINE_uint64(reqs_num, 200e6, "Number of reqs");
 
 using rpc_handle = erpc::Rpc<erpc::CTransport>;
 
@@ -236,7 +236,9 @@ void ctrl_c_handler(int) {
 
 void forward_req(int dest_node, std::unique_ptr<uint8_t[]> buff, size_t buff_sz,
                  app_context *ctx) {
+#ifdef PRINT_DEBUG
   fmt::print("[{}] dest_node={}\n", __PRETTY_FUNCTION__, dest_node);
+#endif
   // needs to send
   rpc_buffs *buffs = new rpc_buffs();
   buffs->alloc_req_buf(buff_sz, ctx->rpc);
@@ -252,7 +254,9 @@ void forward_req(int dest_node, std::unique_ptr<uint8_t[]> buff, size_t buff_sz,
 
 void send_commit_req(int dest_node, std::unique_ptr<uint8_t[]> buff,
                      size_t buff_sz, app_context *ctx) {
+#ifdef PRINT_DEBUG
   fmt::print("[{}] dest_node={}\n", __PRETTY_FUNCTION__, dest_node);
+#endif
   // needs to send
   rpc_buffs *buffs = new rpc_buffs();
   buffs->alloc_req_buf(sizeof(cmt_msg), ctx->rpc);
@@ -322,7 +326,9 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
 void req_handler_cmt(erpc::ReqHandle *req_handle,
                      void *context /* app_context */) {
   static uint64_t count = 0;
+#ifdef PRINT_DEBUG
   fmt::print("{} count={}\n", __func__, count);
+#endif
 
   // deserialize the message-req
   uint8_t *recv_data =
