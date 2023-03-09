@@ -23,6 +23,8 @@ DEFINE_uint64(reqs_num, 200e6, "Number of reqs");
 
 using rpc_handle = erpc::Rpc<erpc::CTransport>;
 enum raft { leader = 0, follower = 1 };
+class app_context;
+void send_cmt(int cmt_idx, const std::vector<int> &dest_ids, app_context *ctx);
 
 struct rpc_buffs {
   erpc::MsgBuffer req;
@@ -55,6 +57,7 @@ public:
     int leader = raft::follower;
     bool is_leader() { return leader == raft::leader; }
     int cmt_idx = 0, prp_idx = 0;
+    std::vector<int> followers;
     using req_id = int;
     using nb_acks = int;
     std::unordered_map<req_id, nb_acks> prp_acks;
@@ -79,6 +82,7 @@ public:
 };
 
 static void cont_func_cmt(void *context, void *t) {
+  static uint64_t count = 0;
   auto *ctx = static_cast<app_context *>(context);
   if (ctx == nullptr) {
     fmt::print("{} ctx==nullptr \n", __func__);
@@ -90,6 +94,10 @@ static void cont_func_cmt(void *context, void *t) {
   ctx->rpc->free_msg_buffer(tag->resp);
 
   delete tag;
+  if ((count % PRINT_BATCH) == 0) {
+    fmt::print("[{}] ack-ed {} prp_reqs\n", __func__, count);
+  }
+  count++;
 }
 
 static void cont_func_prp(void *context, void *t) {
@@ -109,6 +117,31 @@ static void cont_func_prp(void *context, void *t) {
     fmt::print("[{}] ack-ed {} prp_reqs\n", __func__, count);
   }
   count++;
+  send_cmt(100, ctx->metadata->followers, ctx);
+}
+
+void send_cmt(int cmt_idx, const std::vector<int> &dest_ids, app_context *ctx) {
+  // construct message
+  auto msg_buf = std::make_unique<msg>();
+  msg_buf->hdr.src_node = ctx->node_id;
+  msg_buf->hdr.dest_node = -1; /* broadcast */
+  msg_buf->hdr.seq_idx = cmt_idx;
+  msg_buf->hdr.msg_size = kMsgSize;
+  for (auto &dest_id : dest_ids) {
+    // needs to send
+    rpc_buffs *buffs = new rpc_buffs();
+    buffs->alloc_req_buf(sizeof(msg) * msg_manager::batch_count, ctx->rpc);
+    buffs->alloc_resp_buf(kMsgSize, ctx->rpc);
+
+    ::memcpy(buffs->req.buf, msg_buf.get(), sizeof(msg));
+    // enqueue_req
+    ctx->rpc->enqueue_request(ctx->connections[dest_id], kReqCommit,
+                              &buffs->req, &buffs->resp, cont_func_cmt,
+                              reinterpret_cast<void *>(buffs));
+    ctx->batcher->empty_buff();
+    ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
+                              sizeof(msg));
+  }
 }
 
 void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
@@ -196,7 +229,7 @@ std::ostream &operator<<(std::ostream &os, const std::vector<T> vec) {
 
 void leader_func(app_context *ctx,
                  const std::vector<std::tuple<int, std::string>> &uris) {
-  std::vector<int> followers;
+  std::vector<int> &followers = ctx->metadata->followers;
   for (auto &uri : uris) {
     fmt::print("[{}]\tinstance_id={}\tthread_id={}\turi={}.\n",
                __PRETTY_FUNCTION__, ctx->instance_id, ctx->thread_id,
