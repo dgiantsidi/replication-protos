@@ -1,3 +1,4 @@
+#include <chrono>
 #include <fmt/printf.h>
 
 /* message format to populate the request */
@@ -58,9 +59,12 @@ struct msg_manager {
   }
 
   static std::unique_ptr<uint8_t[]> deserialize(uint8_t *buf, size_t buf_sz) {
-    if (buf_sz != sizeof(msg) * batch_count)
-      fmt::print("[{}] buf_sz != batch_count*sizeof(msg)\n",
-                 __PRETTY_FUNCTION__);
+    if (buf_sz != sizeof(msg) * batch_count) {
+      fmt::print("[{}] buf_sz ({}B) != batch_count*sizeof(msg) ({}B)\n",
+                 __PRETTY_FUNCTION__, buf_sz, (sizeof(msg) * batch_count));
+      using namespace std::chrono_literals;
+      std::this_thread::sleep_for(10000ms);
+    }
     auto data = std::make_unique<uint8_t[]>(buf_sz);
     ::memcpy(data.get(), buf, buf_sz);
     return std::move(data);
@@ -84,15 +88,21 @@ struct msg_manager {
   static std::vector<int> parse_indexes(std::unique_ptr<uint8_t[]> msgs,
                                         size_t sz) {
     int min_idx = -1, max_idx = -1, prev_idx = -1;
-    for (auto i = 0ULL; i < batch_count; i++) {
+    size_t msgs_num =
+        (sz < batch_count * sizeof(msg)) ? (sz / sizeof(msg)) : batch_count;
+    for (auto i = 0ULL; i < msgs_num; i++) {
       auto msg_data = std::make_unique<msg>();
       ::memcpy(reinterpret_cast<uint8_t *>(msg_data.get()),
                msgs.get() + i * sizeof(msg), sizeof(msg::header));
+
+#ifdef PRINT_DEBUG
+      fmt::print("[{}] idx={}\n", __func__, msg_data->hdr.seq_idx);
+#endif
       if (i == 0) {
         min_idx = msg_data->hdr.seq_idx;
         prev_idx =
             min_idx - 1; // I will increase it later on for this iteration
-      } else if (i == (batch_count - 1))
+      } else if (i == (msgs_num - 1))
         max_idx = msg_data->hdr.seq_idx;
       else {
         if ((prev_idx + 1) != msg_data->hdr.seq_idx)

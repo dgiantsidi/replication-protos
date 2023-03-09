@@ -29,6 +29,9 @@ void send_cmt(int cmt_idx, const std::vector<int> &dest_ids, app_context *ctx);
 struct rpc_buffs {
   erpc::MsgBuffer req;
   erpc::MsgBuffer resp;
+  rpc_handle *rpc = nullptr;
+  explicit rpc_buffs(rpc_handle *r) : rpc(r){};
+  rpc_buffs() = delete;
 
   void alloc_req_buf(size_t sz, rpc_handle *rpc) {
     req = rpc->alloc_msg_buffer(sz);
@@ -48,7 +51,10 @@ struct rpc_buffs {
     }
   }
 
-  ~rpc_buffs() {}
+  ~rpc_buffs() {
+    // rpc->free_msg_buffer(req);
+    // rpc->free_msg_buffer(resp);
+  }
 };
 
 class app_context {
@@ -58,10 +64,30 @@ public:
     bool is_leader() { return leader == raft::leader; }
     int cmt_idx = 0, prp_idx = 0;
     std::vector<int> followers;
+
     using req_id = int;
     using nb_acks = int;
     std::unordered_map<req_id, nb_acks> prp_acks;
     std::unordered_map<req_id, nb_acks> cmt_acks;
+
+    bool update_prp_acks(int idx, int src_node) {
+      if (prp_acks.find(idx) == prp_acks.end()) {
+        prp_acks.insert({idx, 1});
+        return false;
+      } else {
+        prp_acks.erase(idx);
+        return true;
+      }
+    }
+    bool update_cmt_acks(int idx, int src_node) {
+      if (cmt_acks.find(idx) == cmt_acks.end()) {
+        cmt_acks.insert({idx, 1});
+        return false;
+      } else {
+        prp_acks.erase(idx);
+        return true;
+      }
+    }
   };
 
   rpc_handle *rpc = nullptr;
@@ -90,9 +116,14 @@ static void cont_func_cmt(void *context, void *t) {
     std::this_thread::sleep_for(10000ms);
   }
   auto *tag = static_cast<rpc_buffs *>(t);
+  auto *response = reinterpret_cast<cmt_msg *>(tag->resp.buf);
+  int e_idx = response->e_idx;
+  int sender = response->hdr.src_node;
+
   ctx->rpc->free_msg_buffer(tag->req);
   ctx->rpc->free_msg_buffer(tag->resp);
 
+  ctx->metadata->update_cmt_acks(e_idx, sender);
   delete tag;
   if ((count % PRINT_BATCH) == 0) {
     fmt::print("[{}] ack-ed {} prp_reqs\n", __func__, count);
@@ -109,15 +140,25 @@ static void cont_func_prp(void *context, void *t) {
     std::this_thread::sleep_for(10000ms);
   }
   auto *tag = static_cast<rpc_buffs *>(t);
+
   ctx->rpc->free_msg_buffer(tag->req);
   ctx->rpc->free_msg_buffer(tag->resp);
 
-  delete tag;
+  auto *response = reinterpret_cast<cmt_msg *>(tag->resp.buf);
   if ((count % PRINT_BATCH) == 0) {
     fmt::print("[{}] ack-ed {} prp_reqs\n", __func__, count);
   }
+  int e_idx = response->e_idx;
+  int sender = response->hdr.src_node;
+#ifdef PRINT_DEBUG
+  fmt::print("[{}] ack-ed prp-req for idx={} (from node={})\n", __func__, e_idx,
+             sender);
+#endif
+  bool cmt = ctx->metadata->update_prp_acks(e_idx, sender);
+  delete tag;
   count++;
-  send_cmt(100, ctx->metadata->followers, ctx);
+  if (cmt)
+    send_cmt(e_idx, ctx->metadata->followers, ctx);
 }
 
 void send_cmt(int cmt_idx, const std::vector<int> &dest_ids, app_context *ctx) {
@@ -129,8 +170,8 @@ void send_cmt(int cmt_idx, const std::vector<int> &dest_ids, app_context *ctx) {
   msg_buf->hdr.msg_size = kMsgSize;
   for (auto &dest_id : dest_ids) {
     // needs to send
-    rpc_buffs *buffs = new rpc_buffs();
-    buffs->alloc_req_buf(sizeof(msg) * msg_manager::batch_count, ctx->rpc);
+    rpc_buffs *buffs = new rpc_buffs(ctx->rpc);
+    buffs->alloc_req_buf(sizeof(msg), ctx->rpc);
     buffs->alloc_resp_buf(kMsgSize, ctx->rpc);
 
     ::memcpy(buffs->req.buf, msg_buf.get(), sizeof(msg));
@@ -138,9 +179,6 @@ void send_cmt(int cmt_idx, const std::vector<int> &dest_ids, app_context *ctx) {
     ctx->rpc->enqueue_request(ctx->connections[dest_id], kReqCommit,
                               &buffs->req, &buffs->resp, cont_func_cmt,
                               reinterpret_cast<void *>(buffs));
-    ctx->batcher->empty_buff();
-    ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
-                              sizeof(msg));
   }
 }
 
@@ -155,9 +193,9 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
                                  sizeof(msg))) {
     for (auto &dest_id : dest_ids) {
       // needs to send
-      rpc_buffs *buffs = new rpc_buffs();
+      rpc_buffs *buffs = new rpc_buffs(ctx->rpc);
       buffs->alloc_req_buf(sizeof(msg) * msg_manager::batch_count, ctx->rpc);
-      buffs->alloc_resp_buf(kMsgSize, ctx->rpc);
+      buffs->alloc_resp_buf(sizeof(cmt_msg), ctx->rpc);
 
       ::memcpy(buffs->req.buf, ctx->batcher->serialize_batch(),
                sizeof(msg) * msg_manager::batch_count);
@@ -165,10 +203,10 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
       ctx->rpc->enqueue_request(ctx->connections[dest_id], kReqPropose,
                                 &buffs->req, &buffs->resp, cont_func_prp,
                                 reinterpret_cast<void *>(buffs));
-      ctx->batcher->empty_buff();
-      ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
-                                sizeof(msg));
     }
+    ctx->batcher->empty_buff();
+    ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
+                              sizeof(msg));
     ctx->enqueued_msgs_cnt++;
   }
 }
@@ -176,7 +214,7 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
 void flash_batcher(const std::vector<int> &dest_ids, app_context *ctx) {
   // needs to send
   for (auto &dest_id : dest_ids) {
-    rpc_buffs *buffs = new rpc_buffs();
+    rpc_buffs *buffs = new rpc_buffs(ctx->rpc);
     buffs->alloc_req_buf(sizeof(msg) * ctx->batcher->cur_idx, ctx->rpc);
     buffs->alloc_resp_buf(kMsgSize, ctx->rpc);
 
@@ -280,8 +318,14 @@ void proto_func(size_t thread_id, erpc::Nexus *nexus) {
 
   if (FLAGS_process_id == raft::leader) {
     using uri_tuple = std::tuple<int, std::string>;
+#if 1
     std::vector<std::tuple<int, std::string>> uris{
         uri_tuple{1, std::string{krose}}, uri_tuple{2, std::string{kmartha}}};
+#else
+
+    std::vector<std::tuple<int, std::string>> uris{
+        uri_tuple{1, std::string{kmartha}}};
+#endif
     leader_func(ctx, uris);
   } else {
     follower_func(ctx, std::string{kdonna});
@@ -305,14 +349,11 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   auto batched_msg = msg_manager::deserialize(
       recv_data, req_handle->get_req_msgbuf()->get_data_size());
 
+  std::vector<int> idxs = msg_manager::parse_indexes(
+      std::move(batched_msg), req_handle->get_req_msgbuf()->get_data_size());
   if (count % PRINT_BATCH == 0) {
     // print batched
     fmt::print("{} count={}\n", __func__, count);
-#if 0
-		/* @dimitra: if you enable this you break the next line due to std::move() */
-		msg_manager::print_batched(std::move(batched_msg),
-				req_handle->get_req_msgbuf()->get_data_size());
-#endif
   }
 
   if (count == FLAGS_reqs_num / msg_manager::batch_count - 1)
@@ -322,6 +363,9 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   /* enqueue ack */
 
   app_context *ctx = reinterpret_cast<app_context *>(context);
+  auto ack = std::make_unique<cmt_msg>();
+  ack->e_idx = idxs[1];
+  ack->hdr.src_node = ctx->node_id;
   auto &resp = req_handle->pre_resp_msgbuf;
   if (ctx == nullptr) {
     fmt::print("{} ctx==nullptr \n", __func__);
@@ -333,7 +377,8 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
     using namespace std::chrono_literals;
     std::this_thread::sleep_for(10000ms);
   }
-  ctx->rpc->resize_msg_buffer(&resp, kMsgSize);
+  ctx->rpc->resize_msg_buffer(&resp, sizeof(cmt_msg));
+  ::memcpy(resp.buf, ack.get(), sizeof(cmt_msg));
   ctx->rpc->enqueue_response(req_handle, &resp);
 }
 
@@ -347,7 +392,7 @@ void req_handler_cmt(erpc::ReqHandle *req_handle,
   // deserialize the message-req
   uint8_t *recv_data =
       reinterpret_cast<uint8_t *>(req_handle->get_req_msgbuf()->buf);
-
+  auto *msg_data = reinterpret_cast<msg *>(recv_data);
   if (count % PRINT_BATCH == 0) {
     // print batched
     fmt::print("{} count={}\n", __func__, count);
@@ -358,6 +403,9 @@ void req_handler_cmt(erpc::ReqHandle *req_handle,
   /* enqueue ack */
 
   app_context *ctx = reinterpret_cast<app_context *>(context);
+  auto ack = std::make_unique<cmt_msg>();
+  ack->e_idx = msg_data->hdr.seq_idx;
+  ack->hdr.src_node = ctx->node_id;
   auto &resp = req_handle->pre_resp_msgbuf;
   if (ctx == nullptr) {
     fmt::print("{} ctx==nullptr \n", __func__);
@@ -369,7 +417,8 @@ void req_handler_cmt(erpc::ReqHandle *req_handle,
     using namespace std::chrono_literals;
     std::this_thread::sleep_for(10000ms);
   }
-  ctx->rpc->resize_msg_buffer(&resp, kMsgSize);
+  ctx->rpc->resize_msg_buffer(&resp, sizeof(cmt_msg));
+  ::memcpy(resp.buf, ack.get(), sizeof(cmt_msg));
   ctx->rpc->enqueue_response(req_handle, &resp);
 }
 

@@ -7,7 +7,7 @@ static const std::string kmartha = "129.215.165.53";
 static const std::string krose = "129.215.165.52";
 
 static constexpr uint16_t kUDPPort = 31850;
-static constexpr size_t kMsgSize = 64;
+static constexpr size_t kMsgSize = 128;
 
 static void sm_handler(int local_session, erpc::SmEventType, erpc::SmErrType,
                        void *) {}
