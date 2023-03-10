@@ -137,7 +137,7 @@ static void cont_func_send(void *context, void *t) {
   }
   int e_idx = response->e_idx;
   int sender = response->hdr.src_node;
-#if 1
+#if 0
   fmt::print("[{}] ack-ed prp-req for idx={} (from node={})\n", __func__, e_idx,
              sender);
 #endif
@@ -313,7 +313,7 @@ void proto_func(size_t thread_id, erpc::Nexus *nexus) {
     leader_func(ctx, uris);
   } else if (FLAGS_process_id == krose_id) {
     std::vector<std::tuple<int, std::string>> uris{
-        uri_tuple{kdonna_id, std::string{kdonna}}};
+        uri_tuple{kmartha_id, std::string{kmartha}}};
     //     uri_tuple{kdonna_id, std::string{kdonna}}, uri_tuple{kmartha_id,
     //     std::string{kmartha}}};
     leader_func(ctx, uris);
@@ -431,11 +431,11 @@ int main(int args, char *argv[]) {
                                              : FLAGS_num_client_threads;
 
   std::string server_uri;
-  if (FLAGS_process_id == 0) {
+  if (FLAGS_process_id == kdonna_id) {
     server_uri = kdonna + ":" + std::to_string(kUDPPort);
-  } else if (FLAGS_process_id == 1) {
+  } else if (FLAGS_process_id == krose_id) {
     server_uri = krose + ":" + std::to_string(kUDPPort);
-  } else if (FLAGS_process_id == 2) {
+  } else if (FLAGS_process_id == kmartha_id) {
     server_uri = kmartha + ":" + std::to_string(kUDPPort);
   } else {
     fmt::print("[{}] not valid process_id={}\n", __func__, FLAGS_process_id);
