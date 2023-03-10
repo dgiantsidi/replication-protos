@@ -40,6 +40,7 @@ e.g., `sudo python dpdk-devbind.py --bind=igb_uio 0000:01:00.1/enp1s0f1` (confir
 ## doctor-config TUM
 We pin E810-port to DPDK-driver (igb_uio or vfio-pci).
 - Fetch the ice driver firmware from
+
 	`git clone git://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git`
 - Patch the ice driver in dpdk src code (`dpdk/drivers/net/ice/ice_ethdev.c`) by replacing the line
 
