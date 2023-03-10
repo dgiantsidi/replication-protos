@@ -1,5 +1,6 @@
 test/build/*
 cr/build/*
 rf/build/*
+alc/build/*
 eRPC
 dpdk*
