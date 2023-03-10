@@ -28,23 +28,36 @@ struct cmt_msg {
   };
   // msg format
   header hdr;
-  uint64_t s_idx;
+  uint64_t cns_rd; /* consensus round id */
   uint64_t e_idx;
 };
 
 /* the batched message */
 struct msg_manager {
   static constexpr size_t batch_count = 16;
+  using consensus_round = uint64_t;
+  static constexpr size_t batch_sz =
+      batch_count * sizeof(msg) + sizeof(consensus_round);
   msg_manager() {
-    buffer = std::make_unique<uint8_t[]>(batch_count * sizeof(msg));
-    fmt::print("sizeof(msg)={}\n", sizeof(msg));
+    buffer = std::make_unique<uint8_t[]>(batch_count * sizeof(msg) +
+                                         sizeof(consensus_round));
+    ::memcpy(buffer.get(), &count, sizeof(count));
+    fmt::print("[{}] sizeof(msg)={}, sizeof(consensus_round)={}\n",
+               __PRETTY_FUNCTION__, sizeof(msg), sizeof(consensus_round));
   };
+
+  consensus_round get_consensus_round(uint8_t *buff) {
+    consensus_round rd;
+    ::memcpy(&rd, buff, sizeof(consensus_round));
+    return rd;
+  }
 
   bool enqueue_req(uint8_t *buf, size_t buf_sz) {
     if (buf_sz != sizeof(msg))
       fmt::print("[{}] buf_sz != sizeof(msg)\n", __PRETTY_FUNCTION__);
     if (cur_idx < batch_count) {
-      ::memcpy(buffer.get() + cur_idx * sizeof(msg), buf, buf_sz);
+      ::memcpy(buffer.get() + sizeof(count) + cur_idx * sizeof(msg), buf,
+               buf_sz);
       cur_idx++;
       return true;
     } else
@@ -56,12 +69,14 @@ struct msg_manager {
   void empty_buff() {
     cur_idx = 0;
     count++;
+    ::memcpy(buffer.get(), &count, sizeof(count));
   }
 
   static std::unique_ptr<uint8_t[]> deserialize(uint8_t *buf, size_t buf_sz) {
-    if (buf_sz != sizeof(msg) * batch_count) {
+    if (buf_sz != sizeof(msg) * batch_count + sizeof(count)) {
       fmt::print("[{}] buf_sz ({}B) != batch_count*sizeof(msg) ({}B)\n",
-                 __PRETTY_FUNCTION__, buf_sz, (sizeof(msg) * batch_count));
+                 __PRETTY_FUNCTION__, buf_sz,
+                 (sizeof(msg) * batch_count + sizeof(count)));
       using namespace std::chrono_literals;
       std::this_thread::sleep_for(10000ms);
     }
@@ -75,7 +90,8 @@ struct msg_manager {
     for (auto i = 0ULL; i < batch_count; i++) {
       auto msg_data = std::make_unique<msg>();
       ::memcpy(reinterpret_cast<uint8_t *>(msg_data.get()),
-               msgs.get() + i * sizeof(msg), sizeof(msg::header));
+               msgs.get() + sizeof(consensus_round) + i * sizeof(msg),
+               sizeof(msg::header));
       if (i == 0)
         min_idx = msg_data->hdr.seq_idx;
       if (i == (batch_count - 1))
@@ -116,5 +132,5 @@ struct msg_manager {
 
   std::unique_ptr<uint8_t[]> buffer;
   uint32_t cur_idx = 0;
-  uint64_t count = 0;
+  consensus_round count = 0;
 };
