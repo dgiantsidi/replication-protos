@@ -39,6 +39,6 @@ if (unlikely(!pkthdr->check_magic())) {
 - Getch the ice driver firmware (```git clone git://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git```)
 - Patch the ice driver in dpdk src code (`dpdk/drivers/net/ice/ice_ethdev.c`) by replacing the line
 
-'#define ICE_DFLT_PKG_FILE "/lib/firmware/intel/ice/ddp/ice.pkg"' 
+`#define ICE_DFLT_PKG_FILE "/lib/firmware/intel/ice/ddp/ice.pkg"`
 with 
-'#define ICE_DFLT_PKG_FILE "${linux-firmware}/intel/ice/ddp/ice-1.3.26.0.pkg"'
+`#define ICE_DFLT_PKG_FILE "${linux-firmware}/intel/ice/ddp/ice-1.3.26.0.pkg"`
