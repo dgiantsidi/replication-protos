@@ -1,6 +1,0 @@
-/home/dimitra/workspace/replication-protos/alc/build/CMakeFiles/acl.dir
-/home/dimitra/workspace/replication-protos/alc/build/CMakeFiles/acl_donna.dir
-/home/dimitra/workspace/replication-protos/alc/build/CMakeFiles/acl_rose.dir
-/home/dimitra/workspace/replication-protos/alc/build/CMakeFiles/acl_martha.dir
-/home/dimitra/workspace/replication-protos/alc/build/CMakeFiles/edit_cache.dir
-/home/dimitra/workspace/replication-protos/alc/build/CMakeFiles/rebuild_cache.dir
