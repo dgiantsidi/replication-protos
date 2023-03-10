@@ -6,39 +6,39 @@
 ## UoE cluster
 We pin port-1 to DPDK-driver (igb_uio)
 
-e.g. `sudo python dpdk-devbind.py --bind=igb_uio 0000:01:00.1/enp1s0f1` (to-be-confirmed)
+e.g., `sudo python dpdk-devbind.py --bind=igb_uio 0000:01:00.1/enp1s0f1` (confirmed)
 
 
-## Build eRPC
-
-- build dpdk (get the DPDK 19.11.14 (LTS) from https://core.dpdk.org/download/ )
-- comment out the app and kernel dirs from GNUMakefile
+### Build dpdk 
+- We get the DPDK 19.11.14 (LTS) from https://core.dpdk.org/download/ 
+- Comment out the app and kernel dirs from GNUMakefile and execute
 `make install T=x86_64-native-linuxapp-gcc DESTDIR=usr CXFLAGS="-Wno-error"`
 
-
-- modify the CMakefile.txt
-- add this compile option: `-msse4.1` and remove the `-Werror`
-- include the local paths (todo)
-- change this in file: eRPC/src/rpc_impl/rpc_rx.cc:line 22
+### Build eRPC library
+- Modify the CMakefile.txt by adding this compile option: `-msse4.1` and removing the `-Werror`
+- Include the local paths with dpdk-installation, etc. to the CMakefile.txt (todo)
+- Change this in file: `eRPC/src/rpc_impl/rpc_rx.cc:line 22`
 ```
 if (unlikely(!pkthdr->check_magic())) {
-          ERPC_WARN("Rpc %u: Received packet %s with bad magic number.Dropping.\n", rpc_id, pkthdr->to_string().c_str());
-          continue;
-      }
+ ERPC_WARN("Rpc %u: Received packet %s with bad magic number.Dropping.\n", rpc_id, pkthdr->to_string().c_str());
+ continue;
+}
 ```
-- `mkdir build && cd build && cmake .. -DPERF=OFF -DTRANSPORT=dpdk`
+
+- Then we build the library `mkdir build && cd build && cmake .. -DPERF=OFF -DTRANSPORT=dpdk`
 - `cp src/config.h ../src`
-- `make`
--
-- for the applications to be build also use the linking flag `-Wl,--whole-archive -ldpdk -Wl,--no-whole-archive -lrte_ethdev -Wl,-lrte_port`
+- `make` (in the build dir)
+
+- SOS: To properly link the applications the following linking flags need to be added
+
+    `-Wl,--whole-archive -ldpdk -Wl,--no-whole-archive -lrte_ethdev -Wl,-lrte_port`
 
 
 
 ## doctor-config TUM
-- driver firmware ```git clone git://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git```
-- patch the ice driver in dpdk 
-```
-dpdk/drivers/net/ice/ice_ethdev.c 
-```
-replace
-'#define ICE_DFLT_PKG_FILE "/lib/firmware/intel/ice/ddp/ice.pkg"' with '#define ICE_DFLT_PKG_FILE "${linux-firmware}/intel/ice/ddp/ice-1.3.26.0.pkg"'
+- Getch the ice driver firmware (```git clone git://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git```)
+- Patch the ice driver in dpdk src code (`dpdk/drivers/net/ice/ice_ethdev.c`) by replacing the line
+
+'#define ICE_DFLT_PKG_FILE "/lib/firmware/intel/ice/ddp/ice.pkg"' 
+with 
+'#define ICE_DFLT_PKG_FILE "${linux-firmware}/intel/ice/ddp/ice-1.3.26.0.pkg"'
