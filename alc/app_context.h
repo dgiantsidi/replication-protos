@@ -67,19 +67,23 @@ public:
     }
 
     bool is_round_completed(const int nodes) {
+      static uint64_t cnt = 0;
       if (proto_meta.find(cmt_rd + 1) == proto_meta.end()) {
         fmt::printf("[{}] entry with {} has been erased before.\n", __func__,
                     (cmt_rd + 1));
         return false;
       }
       if (proto_meta[cmt_rd + 1]->nb_cmts == nodes) {
-        /*fmt::print("[{}] we *COMMIT* rnd={} with nb_cmts={}\n", __func__,
-                   (cmt_rd + 1), proto_meta[(cmt_rd + 1)]->nb_cmts);
-        */
+        if ((cnt % PRINT_BATCH) == 0) {
+          fmt::print("[{}] we *COMMIT* rnd={} with nb_cmts={}\n", __func__,
+                     (cmt_rd + 1), proto_meta[(cmt_rd + 1)]->nb_cmts);
+        }
+        cnt++;
         proto_meta.erase(cmt_rd + 1);
         cmt_rd++;
         return true;
       }
+      cnt++;
       //      fmt::print("[{}] nothing to commit for (cmt_rd+1)={},
       //      nb_cmts={}\n", __func__, (cmt_rd+1), proto_meta[cmt_rd +
       //      1]->nb_cmts);
