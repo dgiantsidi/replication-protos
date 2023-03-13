@@ -12,7 +12,7 @@ static constexpr int kReqSend = 1;
 static constexpr int kReqCommit = 2;
 static constexpr int PRINT_BATCH = 50000;
 static constexpr int numa_node = 0;
-static constexpr int tot_nodes = 2;
+static constexpr int tot_nodes = 3;
 
 DEFINE_uint64(num_server_threads, 1, "Number of threads at the server machine");
 DEFINE_uint64(num_client_threads, 1, "Number of threads per client machine");
@@ -113,7 +113,7 @@ static void cont_func_cmt(void *context, void *t) {
   ctx->metadata->commit_completed_rds(tot_nodes);
   delete tag;
   if ((count % PRINT_BATCH) == 0) {
-    fmt::print("[{}] ack-ed {} prp_reqs\n", __func__, count);
+    fmt::print("[{}] ack-ed {} cmt_reqs\n", __func__, count);
   }
   count++;
 }
@@ -311,23 +311,18 @@ void proto_func(size_t thread_id, erpc::Nexus *nexus) {
   using uri_tuple = std::tuple<int, std::string>;
   if (FLAGS_process_id == kdonna_id) {
     std::vector<std::tuple<int, std::string>> uris{
-        uri_tuple{kmartha_id, std::string{kmartha}}};
-    //     uri_tuple{krose_id, std::string{krose}}}; //, uri_tuple{kmartha_id,
-    //     std::string{kmartha}}};
+        uri_tuple{kmartha_id, std::string{kmartha}},
+        uri_tuple{krose_id, std::string{krose}}};
     leader_func(ctx, uris);
   } else if (FLAGS_process_id == krose_id) {
     std::vector<std::tuple<int, std::string>> uris{
-        uri_tuple{kmartha_id, std::string{kmartha}}};
-    //     uri_tuple{kdonna_id, std::string{kdonna}}, uri_tuple{kmartha_id,
-    //     std::string{kmartha}}};
+        uri_tuple{kmartha_id, std::string{kmartha}},
+        uri_tuple{kdonna_id, std::string{kdonna}}};
     leader_func(ctx, uris);
   } else if (FLAGS_process_id == kmartha_id) {
     std::vector<std::tuple<int, std::string>> uris{
-        uri_tuple{kdonna_id, std::string{kdonna}}};
-#if 0
-    std::vector<std::tuple<int, std::string>> uris{
-      uri_tuple{kdonna_id, std::string{kdonna}}, uri_tuple{krose_id, std::string{krose}}};
-#endif
+        uri_tuple{kdonna_id, std::string{kdonna}},
+        uri_tuple{krose_id, std::string{krose}}};
     leader_func(ctx, uris);
   }
 
