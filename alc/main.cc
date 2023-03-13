@@ -1,3 +1,4 @@
+#include "app_context.h"
 #include "common.h"
 #include "msg.h"
 #include "util/numautils.h"
@@ -7,12 +8,6 @@
 #include <gflags/gflags.h>
 #include <signal.h>
 #include <thread>
-
-static constexpr int kReqSend = 1;
-static constexpr int kReqCommit = 2;
-static constexpr int PRINT_BATCH = 50000;
-static constexpr int numa_node = 0;
-static constexpr int tot_nodes = 3;
 
 DEFINE_uint64(num_server_threads, 1, "Number of threads at the server machine");
 DEFINE_uint64(num_client_threads, 1, "Number of threads per client machine");
@@ -26,74 +21,7 @@ enum alc { sender = 0 };
 class app_context;
 void send_cmt(int cmt_idx, const std::vector<int> &dest_ids, app_context *ctx);
 
-class app_context {
-public:
-  struct protocol_metadata {
-    int cmt_rd = -1, cur_rd = 0;
-    std::vector<int> followers;
-
-    using round = uint64_t;
-    using batch = std::unique_ptr<uint8_t[]>;
-
-    struct metadata {
-      using sender_id = int;
-      explicit metadata(int sender, batch req) {
-        ucmt_reqs.insert({sender, std::move(req)});
-      }
-      uint64_t nb_acks; /* number of acks where all nodes have taked all
-                           messages for this round */
-
-      std::unordered_map<sender_id, batch>
-          ucmt_reqs; /* uncommited reqs for this round */
-    };
-    std::unordered_map<round, std::unique_ptr<metadata>> proto_meta;
-
-    bool can_commit(const int nodes) {
-      return (proto_meta[cmt_rd + 1]->nb_acks == nodes);
-    }
-
-    bool is_round_completed(const int nodes) {
-      if (proto_meta[cmt_rd + 1]->nb_acks == nodes) {
-        proto_meta.erase(cmt_rd + 1);
-        cmt_rd++;
-        return true;
-      }
-      return false;
-    }
-
-    void add_recv_req(const int sender, batch reqs, const int rd) {
-      if (proto_meta.find(rd) == proto_meta.end())
-        proto_meta.insert(
-            {rd, std::make_unique<metadata>(sender, std::move(reqs))});
-      else
-        proto_meta[rd]->ucmt_reqs.insert({sender, std::move(reqs)});
-    }
-
-    void commit_completed_rds(const int nodes) {
-      while (cmt_rd < cur_rd) {
-        if (!is_round_completed(nodes))
-          return;
-      }
-    }
-  };
-
-  rpc_handle *rpc = nullptr;
-  int node_id = 0, thread_id = 0;
-  int instance_id = 0; /* instance id used to create the rpcs */
-  msg_manager *batcher = nullptr;
-  protocol_metadata *metadata = nullptr;
-
-  uint64_t enqueued_msgs_cnt = 0;
-
-  /* map of <node_id, session_num> that maintains connections */
-  std::unordered_map<int, int> connections;
-
-  ~app_context() {
-    fmt::print("{} ..\n", __func__);
-    delete rpc;
-  }
-};
-
+#if 0
 static void cont_func_cmt(void *context, void *t) {
   static uint64_t count = 0;
   auto *ctx = static_cast<app_context *>(context);
@@ -169,6 +97,7 @@ void send_cmt(int cmt_idx, const std::vector<int> &dest_ids, app_context *ctx) {
                               reinterpret_cast<void *>(buffs));
   }
 }
+#endif
 
 void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
   // construct message
@@ -199,7 +128,12 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
     ctx->metadata->add_recv_req(ctx->node_id, std::move(ptr),
                                 ctx->batcher->count);
     ctx->metadata->cur_rd = ctx->batcher->count;
-    ctx->metadata->proto_meta[ctx->batcher->count]->nb_acks = 1;
+#ifdef PRINT_DEBUG
+    fmt::print("[{}] send_batch with rd={}\n", __PRETTY_FUNCTION__,
+               ctx->batcher->count);
+#endif
+    // ctx->metadata->proto_meta[ctx->batcher->count]->nb_acks++;
+    /* empty_buff() increases the cound/consensus rd id */
     ctx->batcher->empty_buff();
     ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
                               sizeof(msg));
@@ -229,8 +163,10 @@ void flash_batcher(const std::vector<int> &dest_ids, app_context *ctx) {
            sizeof(msg) * msg_manager::batch_count);
   ctx->metadata->add_recv_req(ctx->node_id, std::move(ptr),
                               ctx->batcher->count);
+  fmt::print("[{}] send_batch with rd={}\n", __PRETTY_FUNCTION__,
+             ctx->batcher->count);
   ctx->metadata->cur_rd = ctx->batcher->count;
-  ctx->metadata->proto_meta[ctx->batcher->count]->nb_acks = 1;
+  ctx->metadata->proto_meta[ctx->batcher->count]->nb_acks++;
   ctx->batcher->empty_buff();
 }
 
@@ -244,7 +180,7 @@ void poll(app_context *ctx) {
 }
 
 [[maybe_unused]] void poll_once(app_context *ctx) {
-  ctx->rpc->run_event_loop(100);
+  ctx->rpc->run_event_loop(1000);
 }
 
 void create_session(const std::string &uri, int rem_node_id, app_context *ctx) {
@@ -344,15 +280,21 @@ void req_handler_send(erpc::ReqHandle *req_handle,
       reinterpret_cast<uint8_t *>(req_handle->get_req_msgbuf()->buf);
   auto batched_msg = msg_manager::deserialize(
       recv_data, req_handle->get_req_msgbuf()->get_data_size());
-#if 0
-  auto ptr = std::make_unique<uint8_t[]>(req_handle->get_req_msgbuf()->get_data_size());
-  ::memcpy(ptr.get(), batched_msg, req_handle->get_req_msgbuf()->get_data_size());
-  ctx->metadata->add_recv_req(0, std::move(ptr), 0)
-  std::vector<int> idxs = msg_manager::parse_indexes(
-      std::move(batched_msg), req_handle->get_req_msgbuf()->get_data_size());
+  auto cns_rd = ctx->batcher->get_consensus_round(batched_msg.get());
+  auto ptr = std::make_unique<uint8_t[]>(
+      req_handle->get_req_msgbuf()->get_data_size());
+  ::memcpy(ptr.get(), batched_msg.get(),
+           req_handle->get_req_msgbuf()->get_data_size());
+
+  //  fmt::print("{} ", __func__);
+  ctx->metadata->add_recv_req(0, std::move(ptr),
+                              cns_rd); // TODO: fix the 0->sender-id
+  ctx->metadata->proto_meta[cns_rd]->nb_acks++;
+
+#ifdef PRINT_DEBUG
   if (count % PRINT_BATCH == 0) {
-    // print batched
-    fmt::print("{} count={}\n", __func__, count);
+    fmt::print("[{}] proto_meta[{}]->nb_acks={}\n", __func__, cns_rd,
+               ctx->metadata->proto_meta[cns_rd]->nb_acks);
   }
 #endif
   if (count == FLAGS_reqs_num / msg_manager::batch_count - 1)
@@ -379,6 +321,17 @@ void req_handler_send(erpc::ReqHandle *req_handle,
   ctx->rpc->resize_msg_buffer(&resp, sizeof(cmt_msg));
   ::memcpy(resp.buf, ack.get(), sizeof(cmt_msg));
   ctx->rpc->enqueue_response(req_handle, &resp);
+
+  bool can_cmt = ctx->metadata->can_commit(tot_acks, cns_rd);
+  if (can_cmt) {
+#ifdef PRINT_DEBUG
+    fmt::print("[{}] cns_rd={} is eligible for commit\n", __PRETTY_FUNCTION__,
+               cns_rd);
+#endif
+    // ctx->metadata->proto_meta[cns_rd]->nb_cmts++;
+    /* all nodes have received all messages so sent commit-msg for this round */
+    send_cmt(cns_rd, ctx->metadata->followers, ctx);
+  }
 }
 
 void req_handler_cmt(erpc::ReqHandle *req_handle,
@@ -394,7 +347,9 @@ void req_handler_cmt(erpc::ReqHandle *req_handle,
   auto *msg_data = reinterpret_cast<msg *>(recv_data);
   if (count % PRINT_BATCH == 0) {
     // print batched
+#ifdef PRINT_DEBUG
     fmt::print("{} count={}\n", __func__, count);
+#endif
   }
 
   count++;
@@ -402,8 +357,13 @@ void req_handler_cmt(erpc::ReqHandle *req_handle,
   /* enqueue ack */
 
   app_context *ctx = reinterpret_cast<app_context *>(context);
+#ifdef PRINT_DEBUG
+  fmt::print("[{}] cmt_idx={} from node={}\n", __PRETTY_FUNCTION__,
+             msg_data->hdr.seq_idx, msg_data->hdr.src_node);
+#endif
+  ctx->metadata->proto_meta[msg_data->hdr.seq_idx]->nb_cmts++;
   auto ack = std::make_unique<cmt_msg>();
-  ack->e_idx = msg_data->hdr.seq_idx;
+  ack->cns_rd = msg_data->hdr.seq_idx;
   ack->hdr.src_node = ctx->node_id;
   auto &resp = req_handle->pre_resp_msgbuf;
   if (ctx == nullptr) {
@@ -419,6 +379,7 @@ void req_handler_cmt(erpc::ReqHandle *req_handle,
   ctx->rpc->resize_msg_buffer(&resp, sizeof(cmt_msg));
   ::memcpy(resp.buf, ack.get(), sizeof(cmt_msg));
   ctx->rpc->enqueue_response(req_handle, &resp);
+  ctx->metadata->commit_completed_rds(tot_acks);
 }
 
 int main(int args, char *argv[]) {

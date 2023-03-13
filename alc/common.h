@@ -13,6 +13,14 @@ static const int krose_id = 2;
 static constexpr uint16_t kUDPPort = 31850;
 static constexpr size_t kMsgSize = 128;
 
+static constexpr int kReqSend = 1;
+static constexpr int kReqCommit = 2;
+static constexpr int PRINT_BATCH = 50000;
+static constexpr int numa_node = 0;
+static constexpr int tot_nodes = 3;
+static constexpr int tot_acks = 4; /* 2 reqs (one from each node) and 2 acks for
+                                      my req (one from each node) */
+
 static void sm_handler(int local_session, erpc::SmEventType, erpc::SmErrType,
                        void *) {}
 

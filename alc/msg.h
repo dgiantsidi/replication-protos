@@ -1,3 +1,4 @@
+#pragma once
 #include <chrono>
 #include <fmt/printf.h>
 
