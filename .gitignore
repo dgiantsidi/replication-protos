@@ -5,3 +5,4 @@ alc/build/*
 eRPC
 dpdk*
 dependencies
+digital_signatures/*.out
