@@ -13,6 +13,7 @@ let
       folly
       gtest
       linuxHeaders
+      openssl
       cmake
       valgrind
       protobuf
