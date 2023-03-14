@@ -1,3 +1,4 @@
+#pragma once
 #include <city.h>
 #include <cstring>
 #include <fmt/printf.h>
@@ -16,7 +17,7 @@ RSA *createRSA(unsigned char *key, int public_enc) {
   BIO *keybio;
   keybio = BIO_new_mem_buf(key, -1);
   if (keybio == nullptr) {
-	  fmt::print("[{}] Failed to create key BIO.\n", __PRETTY_FUNCTION__);
+    fmt::print("[{}] Failed to create key BIO.\n", __PRETTY_FUNCTION__);
     return 0;
   }
 
@@ -26,8 +27,9 @@ RSA *createRSA(unsigned char *key, int public_enc) {
     rsa = PEM_read_bio_RSAPrivateKey(keybio, &rsa, NULL, NULL);
   }
   if (rsa == nullptr) {
-	  fmt::print("[{}] Failed to create RSA.\n", __PRETTY_FUNCTION__);
+    fmt::print("[{}] Failed to create RSA.\n", __PRETTY_FUNCTION__);
   }
+  BIO_free(keybio);
 
   return rsa;
 }
@@ -50,6 +52,7 @@ int private_encrypt(unsigned char *data, int data_len, unsigned char *key,
                     unsigned char *encrypted) {
   RSA *rsa = createRSA(key, 0);
   int result = RSA_private_encrypt(data_len, data, encrypted, rsa, padding);
+  RSA_free(rsa);
   return result;
 }
 
@@ -57,17 +60,18 @@ int public_decrypt(unsigned char *enc_data, int data_len, unsigned char *key,
                    unsigned char *decrypted) {
   RSA *rsa = createRSA(key, 1);
   int result = RSA_public_decrypt(data_len, enc_data, decrypted, rsa, padding);
+  RSA_free(rsa);
   return result;
 }
 
 int priv_sign(const char *data, int data_len, uint8_t *key,
-              uint8_t *&signed_msg) {
+              uint8_t *&signed_msg, int signature_size) {
   auto a = CityHash32(data, data_len);
   fmt::print("[{}] Text to be encrypted={}\n", __PRETTY_FUNCTION__, a);
 
-  signed_msg = new uint8_t[256];
-  int k = private_encrypt(reinterpret_cast<uint8_t *>(&a), 64, key,
-                          reinterpret_cast<uint8_t *>(signed_msg));
+  // signed_msg = new uint8_t[signature_size];
+  int k = private_encrypt(reinterpret_cast<uint8_t *>(&a), sizeof(uint32_t),
+                          key, reinterpret_cast<uint8_t *>(signed_msg));
   fmt::print("\n");
   for (auto i = 0; i < k; i++) {
     fmt::print("{}", signed_msg[i]);
