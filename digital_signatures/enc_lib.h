@@ -16,7 +16,7 @@ RSA *createRSA(unsigned char *key, int public_enc) {
   BIO *keybio;
   keybio = BIO_new_mem_buf(key, -1);
   if (keybio == nullptr) {
-    printf("Failed to create key BIO");
+	  fmt::print("[{}] Failed to create key BIO.\n", __PRETTY_FUNCTION__);
     return 0;
   }
 
@@ -26,7 +26,7 @@ RSA *createRSA(unsigned char *key, int public_enc) {
     rsa = PEM_read_bio_RSAPrivateKey(keybio, &rsa, NULL, NULL);
   }
   if (rsa == nullptr) {
-    printf("Failed to create RSA");
+	  fmt::print("[{}] Failed to create RSA.\n", __PRETTY_FUNCTION__);
   }
 
   return rsa;
@@ -91,12 +91,11 @@ int pub_verify(unsigned char *enc_data, int data_len, unsigned char *key,
   return i;
 }
 
-void printLastError(char *msg) {
-  char *err = static_cast<char *>(malloc(130));
+void print_error(const char *msg) {
+  auto err = std::make_unique<char[]>(130);
   ERR_load_crypto_strings();
-  ERR_error_string(ERR_get_error(), err);
-  printf("%s ERROR: %s\n", msg, err);
-  free(err);
+  ERR_error_string(ERR_get_error(), err.get());
+  fmt::print("{} ERROR: {}\n", msg, err.get());
 }
 
 char publicKey[] =

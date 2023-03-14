@@ -45,10 +45,10 @@ int main() {
   // private_encrypt(reinterpret_cast<uint8_t*>(plainText),
   // std::strlen(plainText), reinterpret_cast<uint8_t*>(privateKey), encrypted);
   if (encrypted_length == -1) {
-    printLastError("Private Encrypt failed");
+    print_error("Private Encrypt failed");
     exit(0);
   }
-  printf("Encrypted length =%d\n", encrypted_length);
+  fmt::printf("[{}] encrypted length={}\n", __PRETTY_FUNCTION__, encrypted_length);
 
   // int decrypted_length = public_decrypt(encrypted, encrypted_length,
   // reinterpret_cast<uint8_t*>(publicKey), decrypted);
@@ -56,15 +56,13 @@ int main() {
       pub_verify(encrypted, encrypted_length,
                  reinterpret_cast<uint8_t *>(publicKey), decrypted);
   if (decrypted_length == -1) {
-    printLastError("Public Decrypt failed");
+    print_error("Public Decrypt failed");
     exit(0);
   }
   uint32_t decrypted_hash;
   ::memcpy(&decrypted_hash, decrypted, sizeof(decrypted_hash));
-  // printf("Decrypted Text =%s\n",decrypted);
-  fmt::print("[{}] Decrypted text={}\n", __PRETTY_FUNCTION__, decrypted_hash);
-  fmt::print("[{}] Decrypted length={}\n", __PRETTY_FUNCTION__,
+  fmt::print("[{}] decrypted text={}\n", __PRETTY_FUNCTION__, decrypted_hash);
+  fmt::print("[{}] decrypted length={}\n", __PRETTY_FUNCTION__,
              decrypted_length);
-  // printf("Decrypted Length =%d\n",decrypted_length);
   return 0;
 }
