@@ -4,4 +4,4 @@ rf/build/*
 alc/build/*
 eRPC
 dpdk*
-digital_signatures/cityhash
+dependencies
