@@ -1,4 +1,4 @@
-#include "enc_lib.h"
+#include "signed_msg.h"
 #include <cstring>
 #include <iostream>
 #include <openssl/bio.h>
@@ -11,47 +11,35 @@
 int main() {
 
   // char plainText[2048/8] = "Hello this is Ravi"; //key length : 2048
+  int alloc_sz = (signature_size * sizeof(uint64_t) + sizeof(uint64_t) +
+                  sizeof(uint8_t) * 1024) /
+                 sizeof(uint8_t);
+  auto buff = std::make_unique<uint8_t[]>(alloc_sz);
 
   char plainText[1024];
   for (auto i = 0ULL; i < 1024; i++) {
     plainText[i] = 'd';
   }
 
-  unsigned char *encrypted;
-  unsigned char decrypted[4098] = {};
+  uint8_t *encrypted = new uint8_t[signature_size];
+  uint8_t *decrypted = new uint8_t[sizeof(uint32_t)];
 
-#if 0
-	int encrypted_length= public_encrypt(reinterpret_cast<uint8_t*>(plainText), std::strlen(plainText), reinterpret_cast<uint8_t*>(publicKey), encrypted);
-	if(encrypted_length == -1) {
-		printLastError("Public Encrypt failed ");
-		exit(0);
-	}
-	printf("Encrypted length =%d\n",encrypted_length);
-
-	int decrypted_length = private_decrypt(encrypted, encrypted_length, reinterpret_cast<uint8_t*>(privateKey), decrypted);
-	if(decrypted_length == -1)
-	{
-		printLastError("Private Decrypt failed ");
-		exit(0);
-	}
-	printf("Decrypted Text =%s\n",decrypted);
-	printf("Decrypted Length =%d\n",decrypted_length);
-
-#endif
+  // TODO: sign msg (input the plaintext and a buff and output the buff signed)
   int encrypted_length =
-      priv_sign(plainText, std::strlen(plainText),
-                reinterpret_cast<uint8_t *>(privateKey), encrypted);
-  //	int encrypted_length=
-  // private_encrypt(reinterpret_cast<uint8_t*>(plainText),
-  // std::strlen(plainText), reinterpret_cast<uint8_t*>(privateKey), encrypted);
+      priv_sign(plainText, 1024, reinterpret_cast<uint8_t *>(privateKey),
+                encrypted, signature_size);
   if (encrypted_length == -1) {
-    print_error("Private Encrypt failed");
+    fmt::print("[{}] Private Encrypt failed.\n", __PRETTY_FUNCTION__);
     exit(0);
   }
-  fmt::printf("[{}] encrypted length={}\n", __PRETTY_FUNCTION__, encrypted_length);
+  fmt::printf("[{}] encrypted length={}\n", __PRETTY_FUNCTION__,
+              encrypted_length);
+  ::memcpy(buff.get(), encrypted, encrypted_length);
+  ::memcpy(buff.get() + encrypted_length + sizeof(uint64_t), plainText, 1024);
 
-  // int decrypted_length = public_decrypt(encrypted, encrypted_length,
-  // reinterpret_cast<uint8_t*>(publicKey), decrypted);
+  // TODO: verify the signed message (input a signed message (buff) and output
+  // true false) int decrypted_length = public_decrypt(encrypted,
+  // encrypted_length, reinterpret_cast<uint8_t*>(publicKey), decrypted);
   int decrypted_length =
       pub_verify(encrypted, encrypted_length,
                  reinterpret_cast<uint8_t *>(publicKey), decrypted);
@@ -64,5 +52,11 @@ int main() {
   fmt::print("[{}] decrypted text={}\n", __PRETTY_FUNCTION__, decrypted_hash);
   fmt::print("[{}] decrypted length={}\n", __PRETTY_FUNCTION__,
              decrypted_length);
+  if (decrypted_hash != CityHash32(plainText, 1024)) {
+    fmt::print("[{}] ERROR: hashes do not match\n", __PRETTY_FUNCTION__);
+  }
+
+  delete[] encrypted;
+  delete[] decrypted;
   return 0;
 }
