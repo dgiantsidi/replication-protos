@@ -7,11 +7,13 @@ LD_FLAGS=-lssl -lcrypto -lfmt -lcityhash -fsanitize=address
 
 target: main1
 
-all: clean main1 main2
+all: clean main1 main2 main3
 main1: clean
 	$(CXX) $(CXX_FLAGS) $(INCLUDES) main.cc $(LDS) $(LD_FLAGS) -o $@
 main2: clean
 	$(CXX) $(CXX_FLAGS) $(INCLUDES) main2.cc $(LDS) $(LD_FLAGS) -o $@
+main3: clean
+	$(CXX) $(CXX_FLAGS) $(INCLUDES) main3.cc $(LDS) $(LD_FLAGS) -o $@
 
 clean:
-	rm -f main1 main2
+	rm -f main1 main2 main3
