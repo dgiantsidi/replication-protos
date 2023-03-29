@@ -66,6 +66,7 @@ int public_decrypt(unsigned char *enc_data, int data_len, unsigned char *key,
 
 int priv_sign(const char *data, int data_len, uint8_t *key,
               uint8_t *&signed_msg, int signature_size) {
+  fmt::print("[{}]\n", __func__);
   auto a = CityHash32(data, data_len);
   fmt::print("[{}] Text to be encrypted={}\n", __PRETTY_FUNCTION__, a);
 
