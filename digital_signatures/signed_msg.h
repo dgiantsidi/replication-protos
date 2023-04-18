@@ -49,3 +49,26 @@ bool verify_msg(uint8_t *signed_msg_buff, uint8_t *public_key) {
     return true;
   return false;
 }
+
+std::tuple<bool, std::unique_ptr<uint8_t[]>>
+verify_get_msg(uint8_t *signed_msg_buff, uint8_t *public_key) {
+  unsigned char decrypted_hash[sizeof(uint32_t)];
+  uint8_t signature[signature_size];
+  ::memcpy(signature, signed_msg_buff, signature_size);
+  int decrypted_length =
+      pub_verify(signature, signature_size, public_key, decrypted_hash);
+  uint64_t msg_size_;
+  ::memcpy(&msg_size_, signed_msg_buff + signature_size, sizeof(uint64_t));
+  const char *payload = reinterpret_cast<char *>(signed_msg_buff) +
+                        (signature_size + sizeof(uint64_t));
+  for (auto i = 0; i < msg_size_; i++) {
+  }
+  uint32_t dec_hash;
+  ::memcpy(&dec_hash, decrypted_hash, sizeof(uint32_t));
+  fmt::print("{} {}\n", dec_hash, CityHash32(payload, msg_size_));
+  auto data_payload = std::make_unique<uint8_t[]>(msg_size_);
+  if (dec_hash == CityHash32(payload, msg_size_)) {
+    return std::make_tuple(true, std::move(data_payload));
+  }
+  return std::make_tuple(false, std::move(data_payload));
+}
