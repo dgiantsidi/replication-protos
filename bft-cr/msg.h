@@ -1,9 +1,19 @@
 #include "signed_msg.h"
 #include <fmt/printf.h>
 
+struct state {
+  uint32_t cmt_idx;
+};
+
+/* msg_format:
+ *      1. original (client) request            (key --- val --- PUT)
+ *      2. leader's action/output               (key --- val --- PUT --- cmt)
+ *      3. <middle1 output> <middle2 output> <middle3 output>
+ */
+
 struct msg {
   static constexpr size_t key_sz = 8;
-  static constexpr size_t value_sz = 40;
+  static constexpr size_t value_sz = 40 - sizeof(uint8_t);
   struct header {
     uint32_t src_node;
     uint32_t dest_node;
@@ -14,6 +24,7 @@ struct msg {
   header hdr;
   uint8_t key[key_sz];
   uint8_t value[value_sz];
+  uint8_t operation;
 };
 
 struct cmt_msg {
@@ -30,7 +41,7 @@ struct cmt_msg {
 };
 
 struct msg_manager {
-  static constexpr size_t batch_count = 16;
+  static constexpr size_t batch_count = 1;
   msg_manager() {
     buffer = std::make_unique<uint8_t[]>(batch_count * sizeof(msg));
     fmt::print("sizeof(msg)={}\n", sizeof(msg));

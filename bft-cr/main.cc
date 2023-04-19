@@ -1,5 +1,6 @@
 #include "common.h"
-#include "msg.h"
+#include "proto.h"
+//#include "msg.h"
 #include "util/numautils.h"
 #include <chrono>
 #include <cstring>
@@ -55,6 +56,7 @@ public:
   int node_id = 0, thread_id = 0;
   int instance_id = 0; /* instance id used to create the rpcs */
   msg_manager *batcher = nullptr;
+  state *st = nullptr;
 
   uint64_t enqueued_msgs_cnt = 0;
   /* map of <node_id, session_num> that maintains connections */
@@ -93,8 +95,13 @@ void send_req(int idx, int dest_id, app_context *ctx) {
   msg_buf->hdr.dest_node = dest_id;
   msg_buf->hdr.seq_idx = idx;
   msg_buf->hdr.msg_size = kMsgSize;
-  if (!ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
-                                 sizeof(msg))) {
+  auto result = construct_msg(ctx->node_id, msg_buf.get());
+  if (!ctx->batcher->enqueue_req(std::get<1>(result).get(),
+                                 std::get<0>(result))) {
+    /*
+if (!ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
+                    sizeof(msg)))
+                    */
     // needs to send
     auto result = ctx->batcher->attest();
     size_t msg_sz = std::get<0>(result);
@@ -213,6 +220,8 @@ void proto_func(size_t thread_id, erpc::Nexus *nexus) {
   fmt::print("[{}]\tthread_id={} starts\n", __PRETTY_FUNCTION__, thread_id);
   app_context *ctx = new app_context();
   ctx->batcher = new msg_manager();
+  ctx->st = new state();
+  ctx->st->cmt_idx = -1;
   ctx->instance_id = FLAGS_instance_id;
   ctx->node_id = FLAGS_process_id;
   ctx->rpc = new rpc_handle(nexus, static_cast<void *>(ctx), ctx->instance_id,
@@ -300,7 +309,7 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
     // print batched
     fmt::print("{} count={}\n", __func__, count);
 #if 0
-/* @dimitra: if you enable this you break the next line due to std::move() */
+		/* @dimitra: if you enable this you break the next line due to std::move() */
 		msg_manager::print_batched(std::move(batched_msg),
 				req_handle->get_req_msgbuf()->get_data_size());
 #endif
@@ -326,9 +335,28 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
   ctx->rpc->resize_msg_buffer(&resp, kMsgSize);
   ctx->rpc->enqueue_response(req_handle, &resp);
 
-  if (ctx->node_id == chain_replication::middle)
+  if (ctx->node_id == chain_replication::middle) {
+    /*
+     * 1) Verify payload/sender
+     * 2) Verify previous execution
+     * 3) Apply execution
+     * 4) Sign and forward the previous payload + current output.
+     */
+
+    /*
+     * msg_format {
+     * 	1. original (client) request
+     * 	2. leader's action
+     * 	3. leader's output
+     * 	4. <middle1 output> <middle2 output> <middle3 output>
+     * }
+     *
+     */
+    verify_execution(reinterpret_cast<char *>(payload.get()), ctx->node_id,
+                     ctx->st);
     forward_req(chain_replication::tail, std::move(batched_msg),
                 req_handle->get_req_msgbuf()->get_data_size(), ctx);
+  }
   if (ctx->node_id == chain_replication::tail)
     send_commit_req(chain_replication::head, std::move(batched_msg),
                     req_handle->get_req_msgbuf()->get_data_size(), ctx);
