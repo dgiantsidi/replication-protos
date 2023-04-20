@@ -42,16 +42,21 @@ struct cmt_msg {
 
 struct msg_manager {
   static constexpr size_t batch_count = 1;
+  static constexpr size_t message_size =
+      (sizeof(msg) + sizeof(msg) + sizeof(uint32_t) + 2 * sizeof(msg));
   msg_manager() {
-    buffer = std::make_unique<uint8_t[]>(batch_count * sizeof(msg));
-    fmt::print("sizeof(msg)={}\n", sizeof(msg));
+    buffer = std::make_unique<uint8_t[]>(
+        batch_count *
+        (sizeof(msg) + sizeof(msg) + sizeof(uint32_t) + 2 * sizeof(msg)));
+    fmt::print("sizeof(msg)={}\tmessage_size={}\n", sizeof(msg), message_size);
   };
 
   bool enqueue_req(uint8_t *buf, size_t buf_sz) {
-    if (buf_sz != sizeof(msg))
-      fmt::print("[{}] buf_sz != sizeof(msg)\n", __PRETTY_FUNCTION__);
+    if (buf_sz > message_size)
+      fmt::print("[{}] buf_sz ({})!= message_size ({})\n", __PRETTY_FUNCTION__,
+                 buf_sz, message_size);
     if (cur_idx < batch_count) {
-      ::memcpy(buffer.get() + cur_idx * sizeof(msg), buf, buf_sz);
+      ::memcpy(buffer.get() + cur_idx * message_size, buf, buf_sz);
       cur_idx++;
       return true;
     } else
@@ -60,25 +65,35 @@ struct msg_manager {
 
   std::tuple<size_t, std::unique_ptr<uint8_t[]>> attest() {
     size_t alloc_sz = (signature_size * sizeof(uint8_t) + sizeof(uint64_t) +
-                       (batch_count * sizeof(msg)) * sizeof(uint8_t)) /
+                       (batch_count * message_size) * sizeof(uint8_t)) /
                       sizeof(uint8_t);
-
+#ifdef DEBUG_PRINT
     fmt::print("[{}] alloc {} bytes\n", __func__, alloc_sz);
+#endif
     auto buff = std::make_unique<uint8_t[]>(alloc_sz);
 
     // TODO: assign the counter
     bool ret = sign_msg(reinterpret_cast<uint8_t *>(buffer.get()),
-                        (batch_count * sizeof(msg)),
+                        (batch_count * message_size),
                         reinterpret_cast<uint8_t *>(privateKey), buff.get());
     if (!ret) {
       fmt::print("[{}] Private Encrypt failed.\n", __PRETTY_FUNCTION__);
       exit(0);
     }
+#ifdef DEBUG_PRINT
+    fmt::print("[{}] encryption done ..\n", __func__);
+#endif
     return std::make_tuple(alloc_sz, std::move(buff));
   }
 
   static std::tuple<bool, std::unique_ptr<uint8_t[]>> verify(uint8_t *data) {
+#ifdef DEBUG_PRINT
+    fmt::print("***** {} start *****\n", __func__);
+#endif
     auto ret = verify_get_msg(data, reinterpret_cast<uint8_t *>(publicKey));
+#ifdef DEBUG_PRINT
+    fmt::print("***** {} end *****\n", __func__);
+#endif
     return ret;
   }
 
@@ -90,9 +105,15 @@ struct msg_manager {
   }
 
   static std::unique_ptr<uint8_t[]> deserialize(uint8_t *buf, size_t buf_sz) {
-    if (buf_sz != sizeof(msg) * batch_count)
-      fmt::print("[{}] buf_sz != batch_count*sizeof(msg)\n",
-                 __PRETTY_FUNCTION__);
+    static constexpr size_t alloc_sz =
+        (signature_size * sizeof(uint8_t) + sizeof(uint64_t) +
+         (batch_count * message_size) * sizeof(uint8_t)) /
+        sizeof(uint8_t);
+    if ((buf_sz != message_size * batch_count) && (buf_sz != alloc_sz))
+      fmt::print("[{}] buf_sz ({}) != batch_count*message_size ({}) and != "
+                 "alloc_sz ({})\n",
+                 __PRETTY_FUNCTION__, buf_sz, (message_size * batch_count),
+                 alloc_sz);
     auto data = std::make_unique<uint8_t[]>(buf_sz);
     ::memcpy(data.get(), buf, buf_sz);
     return std::move(data);

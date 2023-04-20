@@ -21,7 +21,7 @@ DEFINE_uint64(req_size, 64, "Size of request message in bytes");
 DEFINE_uint64(resp_size, 32, "Size of response message in bytes");
 DEFINE_uint64(process_id, 0, "Process id");
 DEFINE_uint64(instance_id, 0, "Instance id (this is to properly set the RPCs");
-DEFINE_uint64(reqs_num, 200e6, "Number of reqs");
+DEFINE_uint64(reqs_num, 20e6, "Number of reqs");
 
 using rpc_handle = erpc::Rpc<erpc::CTransport>;
 
@@ -95,6 +95,7 @@ void send_req(int idx, int dest_id, app_context *ctx) {
   msg_buf->hdr.dest_node = dest_id;
   msg_buf->hdr.seq_idx = idx;
   msg_buf->hdr.msg_size = kMsgSize;
+  // construct the message based on the message format of the protocol
   auto result = construct_msg(ctx->node_id, msg_buf.get());
   if (!ctx->batcher->enqueue_req(std::get<1>(result).get(),
                                  std::get<0>(result))) {
@@ -102,10 +103,10 @@ void send_req(int idx, int dest_id, app_context *ctx) {
 if (!ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
                     sizeof(msg)))
                     */
-    // needs to send
-    auto result = ctx->batcher->attest();
-    size_t msg_sz = std::get<0>(result);
-    std::unique_ptr<uint8_t[]> data = std::move(std::get<1>(result));
+    // needs to attest before sending
+    auto signed_result = ctx->batcher->attest();
+    size_t msg_sz = std::get<0>(signed_result);
+    std::unique_ptr<uint8_t[]> data = std::move(std::get<1>(signed_result));
     //
     rpc_buffs *buffs = new rpc_buffs();
     buffs->alloc_req_buf(msg_sz, ctx->rpc);
@@ -117,26 +118,37 @@ if (!ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
     ctx->rpc->enqueue_request(ctx->connections[dest_id], kReqForward,
                               &buffs->req, &buffs->resp, cont_func,
                               reinterpret_cast<void *>(buffs));
+#ifdef PRINT_DEBUG
+    fmt::print("{} enqueue the request\n", __func__);
+#endif
     ctx->batcher->empty_buff();
-    ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
+    /* ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
                               sizeof(msg));
+                              */
+    ctx->batcher->enqueue_req(std::get<1>(result).get(), std::get<0>(result));
     //    fmt::print("{} idx={}\n", __func__, idx);
     ctx->enqueued_msgs_cnt++;
   }
 }
 
 void flash_batcher(int dest_id, app_context *ctx) {
+  // attest before sending
+  auto signed_result = ctx->batcher->attest();
+  size_t msg_sz = std::get<0>(signed_result);
+  std::unique_ptr<uint8_t[]> data = std::move(std::get<1>(signed_result));
   // needs to send
   rpc_buffs *buffs = new rpc_buffs();
-  buffs->alloc_req_buf(sizeof(msg) * ctx->batcher->cur_idx, ctx->rpc);
+  buffs->alloc_req_buf(msg_sz, ctx->rpc);
   buffs->alloc_resp_buf(kMsgSize, ctx->rpc);
 
-  ::memcpy(buffs->req.buf, ctx->batcher->serialize_batch(),
-           sizeof(msg) * ctx->batcher->cur_idx);
+  ::memcpy(buffs->req.buf, data.get(), msg_sz);
   // enqueue_req
   ctx->rpc->enqueue_request(ctx->connections[dest_id], kReqForward, &buffs->req,
                             &buffs->resp, cont_func,
                             reinterpret_cast<void *>(buffs));
+#ifdef PRINT_DEBUG
+  fmt::print("[{}] done..\n", __func__);
+#endif
 }
 
 void poll(app_context *ctx) {
@@ -250,7 +262,8 @@ void ctrl_c_handler(int) {
 void forward_req(int dest_node, std::unique_ptr<uint8_t[]> buff, size_t buff_sz,
                  app_context *ctx) {
 #ifdef PRINT_DEBUG
-  fmt::print("[{}] dest_node={}\n", __PRETTY_FUNCTION__, dest_node);
+  fmt::print("[{}] dest_node={}\tbuff_sz={}\n", __PRETTY_FUNCTION__, dest_node,
+             buff_sz);
 #endif
   // needs to send
   rpc_buffs *buffs = new rpc_buffs();
@@ -263,6 +276,9 @@ void forward_req(int dest_node, std::unique_ptr<uint8_t[]> buff, size_t buff_sz,
   ctx->rpc->enqueue_request(ctx->connections[dest_node], kReqForward,
                             &buffs->req, &buffs->resp, cont_func,
                             reinterpret_cast<void *>(buffs));
+#ifdef PRINT_DEBUG
+  fmt::print("[{}] done\n", __func__);
+#endif
 }
 
 void send_commit_req(int dest_node, std::unique_ptr<uint8_t[]> buff,
@@ -287,9 +303,13 @@ void send_commit_req(int dest_node, std::unique_ptr<uint8_t[]> buff,
                             &buffs->req, &buffs->resp, cont_func,
                             reinterpret_cast<void *>(buffs));
 }
+
 void req_handler_fw(erpc::ReqHandle *req_handle,
                     void *context /* app_context */) {
   static uint64_t count = 0;
+#ifdef PRINT_DEBUG
+  fmt::print("{} count={} >> <<\n", __func__, count);
+#endif
   app_context *ctx = reinterpret_cast<app_context *>(context);
 
   // deserialize the message-req
@@ -299,7 +319,7 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
   auto batched_msg = msg_manager::deserialize(
       recv_data, req_handle->get_req_msgbuf()->get_data_size());
 
-  auto result = msg_manager::verify(recv_data);
+  auto result = msg_manager::verify(batched_msg.get());
   auto success = std::get<0>(result);
   auto payload = std::move(std::get<1>(result));
   if (!success)
@@ -354,8 +374,14 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
      */
     verify_execution(reinterpret_cast<char *>(payload.get()), ctx->node_id,
                      ctx->st);
+#ifdef PRINT_DEBUG
+    fmt::print("[{}] verify_execution() done\n", __func__);
+#endif
     forward_req(chain_replication::tail, std::move(batched_msg),
                 req_handle->get_req_msgbuf()->get_data_size(), ctx);
+#ifdef PRINT_DEBUG
+    fmt::print("[{}] forward_req() done\n", __func__);
+#endif
   }
   if (ctx->node_id == chain_replication::tail)
     send_commit_req(chain_replication::head, std::move(batched_msg),

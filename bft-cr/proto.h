@@ -29,20 +29,32 @@ construct_msg(int node_id, msg *m /* you can put other fields too*/) {
 
 bool check_leader(uint8_t *ptr, state *st) {
   // checks that the request matches the action and the output
+#ifdef DEBUG_PRINT
+  fmt::print("[{}] #1\n", __func__);
+#endif
   std::unique_ptr<uint8_t[]> creq = std::make_unique<uint8_t[]>(sizeof(msg));
   std::unique_ptr<uint8_t[]> output =
       std::make_unique<uint8_t[]>(sizeof(msg) + sizeof(uint32_t));
+#ifdef DEBUG_PRINT
+  fmt::print("[{}] #2\n", __func__);
+#endif
   ::memcpy(creq.get(), ptr, sizeof(msg));
   ::memcpy(output.get(), ptr + sizeof(msg), sizeof(msg));
-  if (::memcpy(creq.get(), output.get(), sizeof(msg)) != 0)
+  if (::memcmp(creq.get(), output.get(), sizeof(msg)) != 0)
     fmt::print("{} ..\n", __func__);
 
+#ifdef DEBUG_PRINT
+  fmt::print("[{}] #3\n", __func__);
+#endif
   st->cmt_idx++;
   uint32_t cmt_idx = 0;
   ::memcpy(&cmt_idx, (ptr + sizeof(msg) + sizeof(msg)), sizeof(uint32_t));
   if (st->cmt_idx != cmt_idx)
     return false;
 
+#ifdef DEBUG_PRINT
+  fmt::print("[{}] #4\n", __func__);
+#endif
   return true;
 }
 
@@ -63,17 +75,29 @@ bool check_outputs(uint8_t *ptr, int node_id) {
 
 /* data is the signed message */
 bool verify_execution(char *data, int node_id, state *st) {
+#ifdef DEBUG_PRINT
+  fmt::print("[{}] #1\n", __func__);
+#endif
+  if (node_id == 2) {
+    std::tuple<bool, std::unique_ptr<uint8_t[]>> result =
+        msg_manager::verify(reinterpret_cast<uint8_t *>(data + 524));
 
-  std::tuple<bool, std::unique_ptr<uint8_t[]>> result =
-      msg_manager::verify(reinterpret_cast<uint8_t *>(data));
-
-  if (!std::get<0>(result))
-    fmt::print("{} verification failed\n", __func__);
-  if (check_leader(std::get<1>(result).get(), st)) {
-    fmt::print("{} checking leader failed\n", __func__);
+#ifdef DEBUG_PRINT
+    fmt::print("[{}] #2\n", __func__);
+#endif
+    if (!std::get<0>(result))
+      fmt::print("{} verification failed\n", __func__);
+    if (check_leader(std::get<1>(result).get(), st)) {
+      fmt::print("{} checking leader failed\n", __func__);
+    }
+    if (check_outputs(std::get<1>(result).get(), node_id))
+      return true;
+    fmt::print("{} check outputs failed .. \n", __func__);
+    return false;
   }
-  if (check_outputs(std::get<1>(result).get(), node_id))
-    return true;
-  fmt::print("{} check outputs failed .. \n");
-  return false;
+
+#ifdef DEBUG_PRINT
+  fmt::print("[{}] check_leader #2\n", __func__);
+#endif
+  return check_leader(reinterpret_cast<uint8_t *>(data), st);
 }
