@@ -86,7 +86,7 @@ struct msg_manager {
     return std::make_tuple(alloc_sz, std::move(buff));
   }
 
-  static std::tuple<bool, std::unique_ptr<uint8_t[]>> verify(uint8_t *data) {
+  static std::tuple<int, std::unique_ptr<uint8_t[]>> verify(uint8_t *data) {
 #ifdef DEBUG_PRINT
     fmt::print("***** {} start *****\n", __func__);
 #endif
@@ -110,10 +110,10 @@ struct msg_manager {
          (batch_count * message_size) * sizeof(uint8_t)) /
         sizeof(uint8_t);
     if ((buf_sz != message_size * batch_count) && (buf_sz != alloc_sz))
-      fmt::print("[{}] buf_sz ({}) != batch_count*message_size ({}) and != "
-                 "alloc_sz ({})\n",
-                 __PRETTY_FUNCTION__, buf_sz, (message_size * batch_count),
-                 alloc_sz);
+      fmt::print(
+          "[{}] WARNING: buf_sz ({}) != batch_count*message_size ({}) and != "
+          "alloc_sz ({})\n",
+          __PRETTY_FUNCTION__, buf_sz, (message_size * batch_count), alloc_sz);
     auto data = std::make_unique<uint8_t[]>(buf_sz);
     ::memcpy(data.get(), buf, buf_sz);
     return std::move(data);
