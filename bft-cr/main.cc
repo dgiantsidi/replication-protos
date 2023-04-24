@@ -21,7 +21,7 @@ DEFINE_uint64(req_size, 64, "Size of request message in bytes");
 DEFINE_uint64(resp_size, 32, "Size of response message in bytes");
 DEFINE_uint64(process_id, 0, "Process id");
 DEFINE_uint64(instance_id, 0, "Instance id (this is to properly set the RPCs");
-DEFINE_uint64(reqs_num, 20e6, "Number of reqs");
+DEFINE_uint64(reqs_num, 4, "Number of reqs");
 
 using rpc_handle = erpc::Rpc<erpc::CTransport>;
 
@@ -179,8 +179,6 @@ void create_session(const std::string &uri, int rem_node_id, app_context *ctx) {
   ctx->rpc->run_event_loop(3000);
 }
 
-enum chain_replication { head = 0, middle = 1, tail = 2 };
-
 void head_func(app_context *ctx, const std::string &uri) {
   fmt::print("[{}]\tinstance_id={}\tthread_id={}\turi={}.\n",
              __PRETTY_FUNCTION__, ctx->instance_id, ctx->thread_id, uri);
@@ -307,7 +305,7 @@ void send_commit_req(int dest_node, std::unique_ptr<uint8_t[]> buff,
 void req_handler_fw(erpc::ReqHandle *req_handle,
                     void *context /* app_context */) {
   static uint64_t count = 0;
-#ifdef PRINT_DEBUG
+#ifndef PRINT_DEBUG
   fmt::print("{} count={} >> <<\n", __func__, count);
 #endif
   app_context *ctx = reinterpret_cast<app_context *>(context);
@@ -319,10 +317,17 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
   auto batched_msg = msg_manager::deserialize(
       recv_data, req_handle->get_req_msgbuf()->get_data_size());
 
+  fmt::print("[{}] signed_msg_size={}\n", __func__,
+             req_handle->get_req_msgbuf()->get_data_size());
+  for (auto i = 0; i < req_handle->get_req_msgbuf()->get_data_size(); i++) {
+    fmt::print("{}", batched_msg.get()[i]);
+  }
+  fmt::print("\n.....\n");
+  size_t signed_msg_size = req_handle->get_req_msgbuf()->get_data_size();
   auto result = msg_manager::verify(batched_msg.get());
-  auto success = std::get<0>(result);
+  auto payload_sz = std::get<0>(result);
   auto payload = std::move(std::get<1>(result));
-  if (!success)
+  if (payload_sz == -1)
     fmt::print("{} error verifying the message\n", __PRETTY_FUNCTION__);
 
   if (count % PRINT_BATCH == 0) {
@@ -372,20 +377,42 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
      * }
      *
      */
-    verify_execution(reinterpret_cast<char *>(payload.get()), ctx->node_id,
-                     ctx->st);
+    fmt::print("[{}] payload_sz={} payload=\n", __func__, payload_sz);
+    for (auto i = 0; i < payload_sz; i++) {
+      fmt::print("{}", payload.get()[i]);
+    }
+    fmt::print("\n.. .. end\n");
+
+    if (!verify_execution(reinterpret_cast<char *>(payload.get()), ctx->node_id,
+                          ctx->st)) {
+      fmt::print("[{}] verify_execution() failed ..\n", __func__);
+    }
 #ifdef PRINT_DEBUG
     fmt::print("[{}] verify_execution() done\n", __func__);
 #endif
-    forward_req(chain_replication::tail, std::move(batched_msg),
-                req_handle->get_req_msgbuf()->get_data_size(), ctx);
+    auto msg_to_fw = construct_msg_middle(std::move(batched_msg),
+                                          signed_msg_size, payload.get());
+    size_t sz = std::get<0>(msg_to_fw);
+    std::unique_ptr<uint8_t[]> data = std::move(std::get<1>(msg_to_fw));
+    forward_req(chain_replication::tail, std::move(data), sz, ctx);
 #ifdef PRINT_DEBUG
     fmt::print("[{}] forward_req() done\n", __func__);
 #endif
   }
-  if (ctx->node_id == chain_replication::tail)
+  if (ctx->node_id == chain_replication::tail) {
+    fmt::print("[{}] payload_sz={} payload=\n", __func__, payload_sz);
+    for (auto i = 0; i < payload_sz; i++) {
+      fmt::print("{}", payload.get()[i]);
+    }
+    fmt::print("\n..\n");
+    if (!verify_execution_tail(reinterpret_cast<char *>(payload.get()),
+                               ctx->node_id, ctx->st)) {
+      fmt::print("[{}] verifiy_execution() failed ..\n", __func__);
+    }
+
     send_commit_req(chain_replication::head, std::move(batched_msg),
                     req_handle->get_req_msgbuf()->get_data_size(), ctx);
+  }
 }
 
 void req_handler_cmt(erpc::ReqHandle *req_handle,
