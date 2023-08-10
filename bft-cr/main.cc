@@ -32,7 +32,7 @@ struct rpc_buffs {
   void alloc_req_buf(size_t sz, rpc_handle *rpc) {
     req = rpc->alloc_msg_buffer(sz);
     while (req.buf == nullptr) {
-      fmt::print("[{}] failed to allocate memory\n", __func__);
+      fmt::print("[{}] failed to allocate memory.\n", __func__);
       rpc->run_event_loop(100);
       req = rpc->alloc_msg_buffer(sz);
     }
@@ -41,7 +41,7 @@ struct rpc_buffs {
   void alloc_resp_buf(size_t sz, rpc_handle *rpc) {
     resp = rpc->alloc_msg_buffer(sz);
     while (resp.buf == nullptr) {
-      fmt::print("[{}] failed to allocate memory\n", __func__);
+      fmt::print("[{}] failed to allocate memory.\n", __func__);
       rpc->run_event_loop(100);
       resp = rpc->alloc_msg_buffer(sz);
     }
@@ -305,7 +305,7 @@ void send_commit_req(int dest_node, std::unique_ptr<uint8_t[]> buff,
 void req_handler_fw(erpc::ReqHandle *req_handle,
                     void *context /* app_context */) {
   static uint64_t count = 0;
-#ifndef PRINT_DEBUG
+#ifdef PRINT_DEBUG
   fmt::print("{} count={} >> <<\n", __func__, count);
 #endif
   app_context *ctx = reinterpret_cast<app_context *>(context);
@@ -316,19 +316,20 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
 
   auto batched_msg = msg_manager::deserialize(
       recv_data, req_handle->get_req_msgbuf()->get_data_size());
-
+#ifdef PRINT_DEBUG
   fmt::print("[{}] signed_msg_size={}\n", __func__,
              req_handle->get_req_msgbuf()->get_data_size());
   for (auto i = 0; i < req_handle->get_req_msgbuf()->get_data_size(); i++) {
     fmt::print("{}", batched_msg.get()[i]);
   }
   fmt::print("\n.....\n");
+#endif
   size_t signed_msg_size = req_handle->get_req_msgbuf()->get_data_size();
   auto result = msg_manager::verify(batched_msg.get());
   auto payload_sz = std::get<0>(result);
   auto payload = std::move(std::get<1>(result));
   if (payload_sz == -1)
-    fmt::print("{} error verifying the message\n", __PRETTY_FUNCTION__);
+    fmt::print("{} ERROR: verifying the message\n", __PRETTY_FUNCTION__);
 
   if (count % PRINT_BATCH == 0) {
     // print batched
@@ -377,15 +378,16 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
      * }
      *
      */
+#if 0
     fmt::print("[{}] payload_sz={} payload=\n", __func__, payload_sz);
     for (auto i = 0; i < payload_sz; i++) {
       fmt::print("{}", payload.get()[i]);
     }
     fmt::print("\n.. .. end\n");
-
+#endif
     if (!verify_execution(reinterpret_cast<char *>(payload.get()), ctx->node_id,
                           ctx->st)) {
-      fmt::print("[{}] ERROR: >>>>>>>>>>>>>>>> verify_execution() failed ..\n",
+      fmt::print("[{}] ERROR: verify execution #1 failed.\n",
                  __func__);
     }
 #ifdef PRINT_DEBUG
@@ -401,16 +403,17 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
 #endif
   }
   if (ctx->node_id == chain_replication::tail) {
+#if 0
     fmt::print("[{}] payload_sz={} payload=\n", __func__, payload_sz);
     for (auto i = 0; i < payload_sz; i++) {
       fmt::print("{}", payload.get()[i]);
     }
     fmt::print("\n..\n");
+#endif
     if (!verify_execution_tail(reinterpret_cast<char *>(payload.get()),
                                ctx->node_id, ctx->st)) {
-      fmt::print(
-          "[{}] ERROR: >>>>>>>>>>>> verifiy_execution_tail() failed ..\n",
-          __func__);
+      fmt::print("[{}] ERROR: verify execution #2 failed.\n",
+                 __func__);
     }
 
     send_commit_req(chain_replication::head, std::move(batched_msg),
@@ -454,7 +457,7 @@ void req_handler_cmt(erpc::ReqHandle *req_handle,
   ctx->rpc->enqueue_response(req_handle, &resp);
 
   if (ctx->node_id != chain_replication::head) {
-    fmt::print("[{}] not chain_replication::head\n", __PRETTY_FUNCTION__);
+    fmt::print("[{}] ERROR: I am not chain_replication::head.\n", __PRETTY_FUNCTION__);
   }
 }
 
