@@ -7,4 +7,4 @@ jobs:
       - uses: actions/checkout@v2
       - uses: RafikFarhad/clang-format-github-action@v3
         with:
-          sources: "src/**/*.h,src/**/*.c,test/**/*.c,bft-cr/*.cc,bft-cr/*.h,cr/*.h,cr/*.cc"
+          sources: "src/**/*.h,src/**/*.c,test/**/*.c,bft-cr/*.cc,bft-cr/*.h,cr/*.h,cr/*.cc,sha256-example/**/*.h,sha256-example/**/*.cc,sha256-example/*.cpp"
