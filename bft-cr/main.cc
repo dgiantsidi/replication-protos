@@ -21,7 +21,7 @@ DEFINE_uint64(req_size, 64, "Size of request message in bytes");
 DEFINE_uint64(resp_size, 32, "Size of response message in bytes");
 DEFINE_uint64(process_id, 0, "Process id");
 DEFINE_uint64(instance_id, 0, "Instance id (this is to properly set the RPCs");
-DEFINE_uint64(reqs_num, 4, "Number of reqs");
+DEFINE_uint64(reqs_num, 1, "Number of reqs");
 
 using rpc_handle = erpc::Rpc<erpc::CTransport>;
 
@@ -385,7 +385,8 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
 
     if (!verify_execution(reinterpret_cast<char *>(payload.get()), ctx->node_id,
                           ctx->st)) {
-      fmt::print("[{}] verify_execution() failed ..\n", __func__);
+      fmt::print("[{}] ERROR: >>>>>>>>>>>>>>>> verify_execution() failed ..\n",
+                 __func__);
     }
 #ifdef PRINT_DEBUG
     fmt::print("[{}] verify_execution() done\n", __func__);
@@ -407,7 +408,9 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
     fmt::print("\n..\n");
     if (!verify_execution_tail(reinterpret_cast<char *>(payload.get()),
                                ctx->node_id, ctx->st)) {
-      fmt::print("[{}] verifiy_execution() failed ..\n", __func__);
+      fmt::print(
+          "[{}] ERROR: >>>>>>>>>>>> verifiy_execution_tail() failed ..\n",
+          __func__);
     }
 
     send_commit_req(chain_replication::head, std::move(batched_msg),

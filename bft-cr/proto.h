@@ -54,6 +54,7 @@ bool check_leader(uint8_t *ptr, state *st) {
                "action {}\n",
                __func__, cmt_idx, st->cmt_idx);
     // TODO: fixme here return false;
+    return false;
   }
   count++;
   return true;
@@ -72,8 +73,10 @@ bool check_outputs(uint8_t *ptr, int node_id) {
   offset += sizeof(msg);
   for (auto i = 1ULL; i < node_id; i++) {
     ::memcpy(output.get(), ptr + offset, sizeof(msg));
-    if (::memcmp(creq.get(), output.get(), sizeof(msg)) != 0)
+    if (::memcmp(creq.get(), output.get(), sizeof(msg)) != 0) {
       fmt::print("{} error here\n", __func__);
+    return false;
+    }
     for (auto i = 0ULL; i < sizeof(msg); i++) {
       fmt::print("{}", output.get()[i]);
     }
@@ -142,17 +145,20 @@ bool verify_execution_tail(char *data, int node_id, state *st) {
 #ifdef DEBUG_PRINT
     fmt::print("[{}] #2\n", __func__);
 #endif
-    if (!std::get<0>(result))
+    if (!std::get<0>(result)) {
       fmt::print("{} verification failed\n", __func__);
+      return false;
+    }
     if (!check_leader(std::get<1>(result).get(), st)) {
       fmt::print("[{}] check_leader() failed\n", __func__);
+      return false;
     }
-    if (check_outputs(std::get<1>(result).get(), node_id))
-      return true;
-    fmt::print("{} check_outputs() failed .. \n", __func__);
-    return false;
+    if (!check_outputs(std::get<1>(result).get(), node_id)) {
+     	fmt::print("{} check_outputs() failed .. \n", __func__);
+    return false; 
+    }
   } else if (node_id == chain_replication::middle) {
     return check_leader(reinterpret_cast<uint8_t *>(data), st);
   }
-  return false;
+  return true;
 }
