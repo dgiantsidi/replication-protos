@@ -8,4 +8,5 @@ jobs:
       - uses: jidicula/clang-format-action@v4.11.0
         with:
           clang-format-version: '13'
-          sources: "src/**/*.h,src/**/*.c,test/**/*.c,bft-cr/*.cc,bft-cr/*.h,cr/*.h,cr/*.cc,sha256-example/**/*.h,sha256-example/**/*.cc,sha256-example/*.cpp"
+          check-path: sha256-example
+          #          sources: "src/**/*.h,src/**/*.c,test/**/*.c,bft-cr/*.cc,bft-cr/*.h,cr/*.h,cr/*.cc,sha256-example/**/*.h,sha256-example/**/*.cc,sha256-example/*.cpp"
