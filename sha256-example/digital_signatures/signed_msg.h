@@ -56,7 +56,7 @@ bool verify_msg(uint8_t *signed_msg_buff, uint8_t *public_key) {
 #ifdef PRINT_DEBUG
   fmt::print("[{}] #1\n", __func__);
 #endif
-  unsigned char decrypted_hash[sizeof(uint32_t)];
+  unsigned char decrypted_hash[max_hash_sz];
   uint8_t signature[signature_size];
   ::memcpy(signature, signed_msg_buff, signature_size);
   int decrypted_length =
@@ -67,14 +67,15 @@ bool verify_msg(uint8_t *signed_msg_buff, uint8_t *public_key) {
                         (signature_size + sizeof(uint64_t));
   for (auto i = 0; i < msg_size_; i++) {
   }
-  uint32_t dec_hash;
-  ::memcpy(&dec_hash, decrypted_hash, sizeof(uint32_t));
-  fmt::print("{} {}\n", dec_hash, CityHash32(payload, msg_size_));
-#if 0
+  unsigned char dec_hash[max_hash_sz];
+  ::memcpy(dec_hash, decrypted_hash, max_hash_sz);
+  auto a = get_sha256(payload, msg_size_);
 //FIXME
-  if (dec_hash == CityHash32(payload, msg_size_))
+  if (::memcmp(a.get(), dec_hash, max_hash_sz) == 0) {
+		  fmt::print("[{}] correct\n", __func__);
     return true;
-#endif 
+    }
+
   return false;
 }
 
@@ -83,7 +84,7 @@ verify_get_msg(uint8_t *signed_msg_buff, uint8_t *public_key) {
 #ifndef PRINT_DEBUG
   fmt::print("[{}] #1\n", __func__);
 #endif
-  unsigned char decrypted_hash[sizeof(uint32_t)];
+  unsigned char decrypted_hash[max_hash_sz];
   uint8_t signature[signature_size];
   ::memcpy(signature, signed_msg_buff, signature_size);
   int decrypted_length =
@@ -102,14 +103,14 @@ verify_get_msg(uint8_t *signed_msg_buff, uint8_t *public_key) {
     fmt::print("{}", payload[i]);
   }
   fmt::print(">> \n");
-  uint32_t dec_hash;
-  ::memcpy(&dec_hash, decrypted_hash, sizeof(uint32_t));
-#ifndef PRINT_DEBUG
-  fmt::print("[{}] #4: {} {}\n", __func__, dec_hash,
-             CityHash32(payload, msg_size_));
-#endif
+ unsigned char dec_hash[max_hash_sz];
+  ::memcpy(dec_hash, decrypted_hash, max_hash_sz);
+
   auto data_payload = std::make_unique<uint8_t[]>(msg_size_);
-  if (dec_hash == CityHash32(payload, msg_size_)) {
+  auto a = get_sha256(payload, msg_size_);
+//FIXME
+  if (::memcmp(a.get(), dec_hash, max_hash_sz) == 0) {
+		  fmt::print("[{}] correct\n", __func__);
     ::memcpy(data_payload.get(),
              (signed_msg_buff + (signature_size + sizeof(uint64_t))),
              msg_size_);
