@@ -70,6 +70,7 @@ RSA *createRSA(unsigned char *key, int public_enc) {
   if (rsa == nullptr) {
     fmt::print("[{}] Failed to create RSA.\n", __PRETTY_FUNCTION__);
   }
+  // fmt::print("[{}] RSA_size(rsa)={}\n", __func__, RSA_size(rsa));
   BIO_free(keybio);
 
   return rsa;
@@ -167,7 +168,7 @@ int priv_sign_sha256(const char *data, int data_len, uint8_t *key,
   // TODO -> 32
   int k = private_encrypt(a.get(), max_hash_sz, key,
                           reinterpret_cast<uint8_t *>(signed_msg));
-  fmt::print("{} signature_sz={}\n", __func__, k);
+//  fmt::print("{} signature_sz={}\n", __func__, k);
 #ifdef PRINT_DEBUG
   fmt::print("\n");
   for (auto i = 0; i < k; i++) {
@@ -181,8 +182,10 @@ int priv_sign_sha256(const char *data, int data_len, uint8_t *key,
 int pub_verify_sha256(unsigned char *enc_data, int data_len, unsigned char *key,
                       unsigned char *decrypted) {
 
+	/*
   fmt::print("[{}] data_len={}\n", __PRETTY_FUNCTION__, data_len);
   fmt::print("\n");
+  */
 
 #ifdef PRINT_DEBUG
   for (auto i = 0; i < data_len; i++) {
@@ -194,8 +197,10 @@ int pub_verify_sha256(unsigned char *enc_data, int data_len, unsigned char *key,
   auto i = public_decrypt(enc_data, data_len, key, decrypted);
   std::unique_ptr<uint8_t[]> hash =
       std::make_unique<uint8_t[]>(EVP_MAX_MD_SIZE);
+  /*
   fmt::print("{} EVP_MAX_MD_SIZE={}\tdata_len={} i={}\n", __func__,
              EVP_MAX_MD_SIZE, data_len, i);
+	     */
   ::memcpy(hash.get(), decrypted, EVP_MAX_MD_SIZE);
   /*
   for (auto i = 0ULL; i < data_len; i++)

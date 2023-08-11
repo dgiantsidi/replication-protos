@@ -1,13 +1,15 @@
 #pragma once
 #include "enc_lib.h"
-static const int signature_size = 512;
+static const int signature_size = 256; // RSA_size(rsa);
 
 bool sign_msg(uint8_t *plain_text, size_t plain_text_sz, uint8_t *private_key,
               uint8_t *signed_msg_buf) {
+
   uint8_t *signature = new uint8_t[signature_size];
   const char *data = reinterpret_cast<char *>(plain_text);
   int encrypted_length =
-      priv_sign(data, plain_text_sz, private_key, signature, signature_size);
+      priv_sign_sha256(data, plain_text_sz, private_key, signature, signature_size);
+
   if (encrypted_length == -1) {
     fmt::print("[{}] ERROR\n", __func__);
     return false;
@@ -58,7 +60,7 @@ bool verify_msg(uint8_t *signed_msg_buff, uint8_t *public_key) {
   uint8_t signature[signature_size];
   ::memcpy(signature, signed_msg_buff, signature_size);
   int decrypted_length =
-      pub_verify(signature, signature_size, public_key, decrypted_hash);
+      pub_verify_sha256(signature, signature_size, public_key, decrypted_hash);
   uint64_t msg_size_;
   ::memcpy(&msg_size_, signed_msg_buff + signature_size, sizeof(uint64_t));
   const char *payload = reinterpret_cast<char *>(signed_msg_buff) +
@@ -68,8 +70,11 @@ bool verify_msg(uint8_t *signed_msg_buff, uint8_t *public_key) {
   uint32_t dec_hash;
   ::memcpy(&dec_hash, decrypted_hash, sizeof(uint32_t));
   fmt::print("{} {}\n", dec_hash, CityHash32(payload, msg_size_));
+#if 0
+//FIXME
   if (dec_hash == CityHash32(payload, msg_size_))
     return true;
+#endif 
   return false;
 }
 
@@ -82,7 +87,7 @@ verify_get_msg(uint8_t *signed_msg_buff, uint8_t *public_key) {
   uint8_t signature[signature_size];
   ::memcpy(signature, signed_msg_buff, signature_size);
   int decrypted_length =
-      pub_verify(signature, signature_size, public_key, decrypted_hash);
+      pub_verify_sha256(signature, signature_size, public_key, decrypted_hash);
 #ifndef PRINT_DEBUG
   fmt::print("[{}] decrypted_length={} #2\n", __func__, decrypted_length);
 #endif
