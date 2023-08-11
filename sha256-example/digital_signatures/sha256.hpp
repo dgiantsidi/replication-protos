@@ -18,5 +18,7 @@ std::unique_ptr<uint8_t[]> get_sha256(const char *data, size_t data_sz) {
   EVP_DigestUpdate(mdctx, data, data_sz);
   EVP_DigestFinal_ex(mdctx, md_value.get(), &md_len);
   EVP_MD_CTX_free(mdctx);
-  return std::move(md_value);
+  // do not move as you prevent copy elision;
+  // return std::move(md_value);
+  return md_value;
 }
