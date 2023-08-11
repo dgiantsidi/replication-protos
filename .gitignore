@@ -8,3 +8,4 @@ dpdk*
 dependencies
 digital_signatures/*.out
 **/**/bench
+**/**/openssl
