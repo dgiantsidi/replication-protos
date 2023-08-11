@@ -269,6 +269,12 @@ void forward_req(int dest_node, std::unique_ptr<uint8_t[]> buff, size_t buff_sz,
   buffs->alloc_resp_buf(kMsgSize, ctx->rpc);
 
   ::memcpy(buffs->req.buf, buff.get(), buff_sz);
+  fmt::print("[{}] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  what we forward: signed_msg_size={}\n", __func__,
+             buff_sz);
+  for (auto i = 0; i < buff_sz; i++) {
+    fmt::print("{}", buff.get()[i]);
+  }
+  fmt::print("\n.....>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
 
   // enqueue_req
   ctx->rpc->enqueue_request(ctx->connections[dest_node], kReqForward,
@@ -316,14 +322,12 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
 
   auto batched_msg = msg_manager::deserialize(
       recv_data, req_handle->get_req_msgbuf()->get_data_size());
-#ifdef PRINT_DEBUG
-  fmt::print("[{}] signed_msg_size={}\n", __func__,
+  fmt::print("[{}] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  what we received: signed_msg_size={}\n", __func__,
              req_handle->get_req_msgbuf()->get_data_size());
   for (auto i = 0; i < req_handle->get_req_msgbuf()->get_data_size(); i++) {
     fmt::print("{}", batched_msg.get()[i]);
   }
-  fmt::print("\n.....\n");
-#endif
+  fmt::print("\n.....>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
   size_t signed_msg_size = req_handle->get_req_msgbuf()->get_data_size();
   auto result = msg_manager::verify(batched_msg.get());
   auto payload_sz = std::get<0>(result);
