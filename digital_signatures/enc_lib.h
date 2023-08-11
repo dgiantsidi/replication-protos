@@ -66,18 +66,18 @@ int public_decrypt(unsigned char *enc_data, int data_len, unsigned char *key,
 
 int priv_sign(const char *data, int data_len, uint8_t *key,
               uint8_t *&signed_msg, int signature_size) {
-#ifndef PRINT_DEBUG
+#ifdef PRINT_DEBUG
   fmt::print("[{}]\n", __func__);
 #endif
   auto a = CityHash32(data, data_len);
-#ifndef PRINT_DEBUG
+#ifdef PRINT_DEBUG
   fmt::print("[{}] Text to be encrypted={}\n", __PRETTY_FUNCTION__, a);
 #endif
 
   // signed_msg = new uint8_t[signature_size];
   int k = private_encrypt(reinterpret_cast<uint8_t *>(&a), sizeof(uint32_t),
                           key, reinterpret_cast<uint8_t *>(signed_msg));
-#ifndef PRINT_DEBUG
+#ifdef PRINT_DEBUG
   fmt::print("\n");
   for (auto i = 0; i < k; i++) {
     fmt::print("{}", signed_msg[i]);
@@ -89,11 +89,11 @@ int priv_sign(const char *data, int data_len, uint8_t *key,
 
 int pub_verify(unsigned char *enc_data, int data_len, unsigned char *key,
                unsigned char *decrypted) {
-#ifndef PRINT_DEBUG
+#ifdef PRINT_DEBUG2
   fmt::print("[{}] data_len={}\n", __PRETTY_FUNCTION__, data_len);
   fmt::print("\n");
 #endif
-#ifndef PRINT_DEBUG
+#ifdef PRINT_DEBUG2
   for (auto i = 0; i < data_len; i++) {
     fmt::print("{}", enc_data[i]);
   }
@@ -102,7 +102,7 @@ int pub_verify(unsigned char *enc_data, int data_len, unsigned char *key,
   auto i = public_decrypt(enc_data, data_len, key, decrypted);
   uint32_t a;
   ::memcpy(&a, decrypted, sizeof(uint32_t));
-#ifndef PRINT_DEBUG
+#ifdef PRINT_DEBUG2
   fmt::print("{}\n", a);
 #endif
   return i;
