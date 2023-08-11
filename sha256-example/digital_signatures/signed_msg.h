@@ -7,8 +7,8 @@ bool sign_msg(uint8_t *plain_text, size_t plain_text_sz, uint8_t *private_key,
 
   uint8_t *signature = new uint8_t[signature_size];
   const char *data = reinterpret_cast<char *>(plain_text);
-  int encrypted_length =
-      priv_sign_sha256(data, plain_text_sz, private_key, signature, signature_size);
+  int encrypted_length = priv_sign_sha256(data, plain_text_sz, private_key,
+                                          signature, signature_size);
 
   if (encrypted_length == -1) {
     fmt::print("[{}] ERROR\n", __func__);
@@ -70,11 +70,11 @@ bool verify_msg(uint8_t *signed_msg_buff, uint8_t *public_key) {
   unsigned char dec_hash[max_hash_sz];
   ::memcpy(dec_hash, decrypted_hash, max_hash_sz);
   auto a = get_sha256(payload, msg_size_);
-//FIXME
+  // FIXME
   if (::memcmp(a.get(), dec_hash, max_hash_sz) == 0) {
-		  fmt::print("[{}] correct\n", __func__);
+    fmt::print("[{}] correct\n", __func__);
     return true;
-    }
+  }
 
   return false;
 }
@@ -103,14 +103,14 @@ verify_get_msg(uint8_t *signed_msg_buff, uint8_t *public_key) {
     fmt::print("{}", payload[i]);
   }
   fmt::print(">> \n");
- unsigned char dec_hash[max_hash_sz];
+  unsigned char dec_hash[max_hash_sz];
   ::memcpy(dec_hash, decrypted_hash, max_hash_sz);
 
   auto data_payload = std::make_unique<uint8_t[]>(msg_size_);
   auto a = get_sha256(payload, msg_size_);
-//FIXME
+  // FIXME
   if (::memcmp(a.get(), dec_hash, max_hash_sz) == 0) {
-		  fmt::print("[{}] correct\n", __func__);
+    fmt::print("[{}] correct\n", __func__);
     ::memcpy(data_payload.get(),
              (signed_msg_buff + (signature_size + sizeof(uint64_t))),
              msg_size_);

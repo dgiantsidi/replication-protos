@@ -6,8 +6,8 @@ bool sign_msg(uint8_t *plain_text, size_t plain_text_sz, uint8_t *private_key,
               uint8_t *signed_msg_buf) {
   uint8_t *signature = new uint8_t[signature_size];
   const char *data = reinterpret_cast<char *>(plain_text);
-  int encrypted_length =
-      priv_sign_sha256(data, plain_text_sz, private_key, signature, signature_size);
+  int encrypted_length = priv_sign_sha256(data, plain_text_sz, private_key,
+                                          signature, signature_size);
   if (encrypted_length == -1) {
     fmt::print("[{}] ERROR #1\n", __func__);
     return false;
@@ -68,7 +68,7 @@ bool verify_msg(uint8_t *signed_msg_buff, uint8_t *public_key) {
   }
   uint32_t dec_hash;
   ::memcpy(&dec_hash, decrypted_hash, sizeof(uint32_t));
-//  fmt::print("{} {}\n", dec_hash, CityHash32(payload, msg_size_));
+  //  fmt::print("{} {}\n", dec_hash, CityHash32(payload, msg_size_));
   if (dec_hash == CityHash32(payload, msg_size_))
     return true;
   return false;

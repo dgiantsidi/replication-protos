@@ -269,8 +269,9 @@ void forward_req(int dest_node, std::unique_ptr<uint8_t[]> buff, size_t buff_sz,
   buffs->alloc_resp_buf(kMsgSize, ctx->rpc);
 
   ::memcpy(buffs->req.buf, buff.get(), buff_sz);
-  fmt::print("[{}] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  what we forward: signed_msg_size={}\n", __func__,
-             buff_sz);
+  fmt::print("[{}] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  what we "
+             "forward: signed_msg_size={}\n",
+             __func__, buff_sz);
   for (auto i = 0; i < buff_sz; i++) {
     fmt::print("{}", buff.get()[i]);
   }
@@ -322,8 +323,9 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
 
   auto batched_msg = msg_manager::deserialize(
       recv_data, req_handle->get_req_msgbuf()->get_data_size());
-  fmt::print("[{}] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  what we received: signed_msg_size={}\n", __func__,
-             req_handle->get_req_msgbuf()->get_data_size());
+  fmt::print("[{}] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  what we "
+             "received: signed_msg_size={}\n",
+             __func__, req_handle->get_req_msgbuf()->get_data_size());
   for (auto i = 0; i < req_handle->get_req_msgbuf()->get_data_size(); i++) {
     fmt::print("{}", batched_msg.get()[i]);
   }
@@ -391,8 +393,7 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
 #endif
     if (!verify_execution(reinterpret_cast<char *>(payload.get()), ctx->node_id,
                           ctx->st)) {
-      fmt::print("[{}] ERROR: verify execution #1 failed.\n",
-                 __func__);
+      fmt::print("[{}] ERROR: verify execution #1 failed.\n", __func__);
     }
 #ifdef PRINT_DEBUG
     fmt::print("[{}] verify_execution() done\n", __func__);
@@ -416,8 +417,7 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
 #endif
     if (!verify_execution_tail(reinterpret_cast<char *>(payload.get()),
                                ctx->node_id, ctx->st)) {
-      fmt::print("[{}] ERROR: verify execution #2 failed.\n",
-                 __func__);
+      fmt::print("[{}] ERROR: verify execution #2 failed.\n", __func__);
     }
 
     send_commit_req(chain_replication::head, std::move(batched_msg),
@@ -461,7 +461,8 @@ void req_handler_cmt(erpc::ReqHandle *req_handle,
   ctx->rpc->enqueue_response(req_handle, &resp);
 
   if (ctx->node_id != chain_replication::head) {
-    fmt::print("[{}] ERROR: I am not chain_replication::head.\n", __PRETTY_FUNCTION__);
+    fmt::print("[{}] ERROR: I am not chain_replication::head.\n",
+               __PRETTY_FUNCTION__);
   }
 }
 

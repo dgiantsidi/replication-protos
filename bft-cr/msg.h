@@ -48,13 +48,14 @@ struct msg_manager {
     buffer = std::make_unique<uint8_t[]>(
         batch_count *
         (sizeof(msg) + sizeof(msg) + sizeof(uint32_t) + 2 * sizeof(msg)));
-    fmt::print("[{}] INFO: msg={}\tmessage_size={}\n", __PRETTY_FUNCTION__, sizeof(msg), message_size);
+    fmt::print("[{}] INFO: msg={}\tmessage_size={}\n", __PRETTY_FUNCTION__,
+               sizeof(msg), message_size);
   };
 
   bool enqueue_req(uint8_t *buf, size_t buf_sz) {
     if (buf_sz > message_size)
-      fmt::print("[{}] ERROR: buf_sz ({}B)!= message_size ({}B)\n", __PRETTY_FUNCTION__,
-                 buf_sz, message_size);
+      fmt::print("[{}] ERROR: buf_sz ({}B)!= message_size ({}B)\n",
+                 __PRETTY_FUNCTION__, buf_sz, message_size);
     if (cur_idx < batch_count) {
       ::memcpy(buffer.get() + cur_idx * message_size, buf, buf_sz);
       cur_idx++;
@@ -77,7 +78,8 @@ struct msg_manager {
                         (batch_count * message_size),
                         reinterpret_cast<uint8_t *>(privateKey), buff.get());
     if (!ret) {
-      fmt::print("[{}] ERROR: signing w/ priv key failed.\n", __PRETTY_FUNCTION__);
+      fmt::print("[{}] ERROR: signing w/ priv key failed.\n",
+                 __PRETTY_FUNCTION__);
       exit(0);
     }
 #ifdef DEBUG_PRINT

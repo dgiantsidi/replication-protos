@@ -182,10 +182,10 @@ int priv_sign_sha256(const char *data, int data_len, uint8_t *key,
 int pub_verify_sha256(unsigned char *enc_data, int data_len, unsigned char *key,
                       unsigned char *decrypted) {
 
-	/*
-  fmt::print("[{}] data_len={}\n", __PRETTY_FUNCTION__, data_len);
-  fmt::print("\n");
-  */
+  /*
+fmt::print("[{}] data_len={}\n", __PRETTY_FUNCTION__, data_len);
+fmt::print("\n");
+*/
 
 #ifdef PRINT_DEBUG
   for (auto i = 0; i < data_len; i++) {
@@ -200,7 +200,7 @@ int pub_verify_sha256(unsigned char *enc_data, int data_len, unsigned char *key,
   /*
   fmt::print("{} EVP_MAX_MD_SIZE={}\tdata_len={} i={}\n", __func__,
              EVP_MAX_MD_SIZE, data_len, i);
-	     */
+             */
   ::memcpy(hash.get(), decrypted, EVP_MAX_MD_SIZE);
   /*
   for (auto i = 0ULL; i < data_len; i++)
