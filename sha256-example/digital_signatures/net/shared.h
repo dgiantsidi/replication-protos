@@ -55,9 +55,9 @@ overloaded(Ts...) -> overloaded<Ts...>;
 inline auto convert_byte_array_to_int(char * b) noexcept -> uint32_t {
   if constexpr (LITTLE_ENDIAN) {
 #if defined(__GNUC__)
-    uint32_t res = 0;
-    memcpy(&res, b, sizeof(res));
-    return __builtin_bswap32(res);
+ //   uint32_t res = 0;
+ //   memcpy(&res, b, sizeof(res));
+ //   return __builtin_bswap32(res);
 #else  // defined(__GNUC__)
     return (b[0] << 24) | ((b[1] & 0xFF) << 16) | ((b[2] & 0xFF) << 8)
       | (b[3] & 0xFF);
@@ -261,5 +261,17 @@ auto recv_ack(auto listening_socket) -> std::pair<int, std::unique_ptr<char[]>> 
   return std::make_pair(bytecount, std::move(buffer));
 }
 
+
+
+ inline auto destruct_message(char * msg, size_t bytes)
+    -> std::optional<uint32_t> {
+    if (bytes < 4) {
+	fmt::print("{} error\n", __func__);
+    return std::nullopt;
+    }
+  
+    auto actual_msg_size = convert_byte_array_to_int(msg);
+    return actual_msg_size;
+  }
 
 

@@ -10,21 +10,13 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-inline auto destruct_message(char * msg, size_t bytes)
-    -> std::optional<uint32_t> {
-  if (bytes < 4) {
-    return std::nullopt;
-  }
-
-  auto actual_msg_size = convert_byte_array_to_int(msg);
-  return actual_msg_size;
-}
 
 static auto read_n(int fd, char * buffer, size_t n) -> size_t {
   size_t bytes_read = 0;
   size_t retries = 0;
   constexpr size_t max_retries = 10000;
   while (bytes_read < n) {
+    // std::cout << bytes_read << "->waiting for " << static_cast<int>(n) <<"\n";
     auto bytes_left = n - bytes_read;
     auto bytes_read_now = recv(fd, buffer + bytes_read, bytes_left, 0);
     // negative return_val means that there are no more data (fine for non
@@ -65,12 +57,17 @@ auto secure_recv(int fd) -> std::pair<size_t, std::unique_ptr<char[]>> {
   auto actual_msg_size = *actual_msg_size_opt;
   auto buf = std::make_unique<char[]>(static_cast<size_t>(actual_msg_size) + 1);
   buf[actual_msg_size] = '\0';
+  std::cout << static_cast<int>(actual_msg_size) << "\n";
   if (auto byte_read = read_n(fd, buf.get(), actual_msg_size);
       byte_read != actual_msg_size) {
     debug_print("[{}] Length of message is incorrect got {} expected {}\n",
                 __func__,
                 byte_read,
                 actual_msg_size);
+    for (auto i = 0ULL; i < byte_read; i++ ){
+	    fmt::print("{}", static_cast<int>(buf.get()[i]));
+    }
+    fmt::print("\n");
     return {0, nullptr};
   }
 
@@ -80,6 +77,10 @@ auto secure_recv(int fd) -> std::pair<size_t, std::unique_ptr<char[]>> {
 }
 
 auto secure_send(int fd, char * data, size_t len) -> std::optional<size_t> {
+    for (auto i = 0ULL; i < len; i++ ){
+	    fmt::print("{}", static_cast<int>(data[i]));
+    }
+    fmt::print("\n");
   auto bytes = 0LL;
   auto remaining_bytes = len;
 

@@ -1,13 +1,15 @@
 export CUR_PATH=$(shell $(pwd))
 CXX=g++
 CXX_FLAGS=-Wall -std=c++17 -Wno-error -Wall -g# -fsanitize=address
-INCLUDES=-I/usr/local/include -I/usr/local/ssl/include
+INCLUDES=-I/usr/local/include -I/usr/local/ssl/include -I./net
 LDS=-L/usr/local/lib -L/usr/local/ssl/lib64
-LD_FLAGS=-lcrypto  -lfmt -lcityhash -lgflags #-fsanitize=address
+LD_FLAGS=-lcrypto  -lfmt #-lcityhash -lgflags #-fsanitize=address
+
+SRCs = net/shared.cpp
 
 target: bench
 
-all: clean main1 main2 main3
+all: clean main1 main2 main3 bench server
 main1: clean
 	$(CXX) $(CXX_FLAGS) $(INCLUDES) main.cc $(LDS) $(LD_FLAGS) -o $@ 
 main2: 
@@ -17,5 +19,11 @@ main3:
 bench: clean
 	$(CXX) $(CXX_FLAGS) $(INCLUDES) bench.cc $(LDS) $(LD_FLAGS) -o $@ 
 
+server:  clean
+	$(CXX) $(CXX_FLAGS) $(INCLUDES) attest_server.cc $(SRCs) $(LDS) $(LD_FLAGS) -o $@ 
+
+client: 
+	$(CXX) $(CXX_FLAGS) $(INCLUDES) client.cc $(SRCs) $(LDS) $(LD_FLAGS) -o $@ 
+
 clean:
-	rm -f main1 main2 main3 bench
+	rm -f main1 main2 main3 bench server client
