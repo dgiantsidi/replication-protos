@@ -13,27 +13,26 @@
 #include <sys/types.h>
 
 #if !defined(NDEBUG)
-#  include <fmt/format.h>
-#  if 0
+#include <fmt/format.h>
+#if 0
 template<class... Args>
 void debug_print(fmt::format_string<Args...> fmt, Args &&... args) {
   fmt::print(fmt, std::forward<Args>(args)...);
 }
-#  else  // 0
+#else // 0
 // NOLINTNEXTLINE(readability-identifier-naming)
-#    define debug_print(...) fmt::print(__VA_ARGS__)
-#  endif  // 0
+#define debug_print(...) fmt::print(__VA_ARGS__)
+#endif // 0
 #else  // !defined(NDEBUG)
-template<class... Args>
-void debug_print(Args &&...) {}
-#endif  // !defined(NDEBUG)
+template <class... Args> void debug_print(Args &&...) {}
+#endif // !defined(NDEBUG)
 
 #if !defined(LITTLE_ENDIAN)
-#  if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__)
-#    define LITTLE_ENDIAN __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#  else
-#    define LITTLE_ENDIAN true
-#  endif
+#if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__)
+#define LITTLE_ENDIAN __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#else
+#define LITTLE_ENDIAN true
+#endif
 #endif
 
 static constexpr auto length_size_field = sizeof(uint32_t);
@@ -41,27 +40,25 @@ static constexpr auto client_base_addr = 30500;
 static constexpr auto number_of_connect_attempts = 20;
 static constexpr auto gets_per_mille = 200;
 
-template<class... Ts>
-struct overloaded : Ts... {  // NOLINT
+template <class... Ts> struct overloaded : Ts... { // NOLINT
   using Ts::operator()...;
 };
-template<class... Ts>
-overloaded(Ts...) -> overloaded<Ts...>;
+template <class... Ts> overloaded(Ts...)->overloaded<Ts...>;
 
 /**
  ** It takes as an argument a ptr to an array of size 4 or bigger and
  ** converts the char array into an integer.
  **/
-inline auto convert_byte_array_to_int(char * b) noexcept -> uint32_t {
+inline auto convert_byte_array_to_int(char *b) noexcept -> uint32_t {
   if constexpr (LITTLE_ENDIAN) {
 #if defined(__GNUC__)
- //   uint32_t res = 0;
- //   memcpy(&res, b, sizeof(res));
- //   return __builtin_bswap32(res);
-#else  // defined(__GNUC__)
-    return (b[0] << 24) | ((b[1] & 0xFF) << 16) | ((b[2] & 0xFF) << 8)
-      | (b[3] & 0xFF);
-#endif  // defined(__GNUC__)
+    //   uint32_t res = 0;
+    //   memcpy(&res, b, sizeof(res));
+    //   return __builtin_bswap32(res);
+    //#else  // defined(__GNUC__)
+    return (b[0] << 24) | ((b[1] & 0xFF) << 16) | ((b[2] & 0xFF) << 8) |
+           (b[3] & 0xFF);
+#endif // defined(__GNUC__)
   }
   uint32_t result = 0;
   memcpy(&result, b, sizeof(result));
@@ -72,20 +69,19 @@ inline auto convert_byte_array_to_int(char * b) noexcept -> uint32_t {
  ** It takes as arguments one char[] array of 4 or bigger size and an integer.
  ** It converts the integer into a byte array.
  **/
-inline auto convert_int_to_byte_array(char * dst, uint32_t sz) noexcept
--> void {
+inline auto convert_int_to_byte_array(char *dst, uint32_t sz) noexcept -> void {
   if constexpr (LITTLE_ENDIAN) {
 #if defined(__GNUC__)
-    auto tmp = __builtin_bswap32(sz);
-    memcpy(dst, &tmp, sizeof(tmp));
-#else  // defined(__GNUC__)
+    //   auto tmp = __builtin_bswap32(sz);
+    //    memcpy(dst, &tmp, sizeof(tmp));
+    //#else  // defined(__GNUC__)
     auto tmp = dst;
     tmp[0] = (sz >> 24) & 0xFF;
     tmp[1] = (sz >> 16) & 0xFF;
     tmp[2] = (sz >> 8) & 0xFF;
     tmp[3] = sz & 0xFF;
-#endif  // defined(__GNUC__)
-  } else {  // BIG_ENDIAN
+#endif     // defined(__GNUC__)
+  } else { // BIG_ENDIAN
     memcpy(dst, &sz, sizeof(sz));
   }
 }
@@ -93,13 +89,12 @@ inline auto convert_int_to_byte_array(char * dst, uint32_t sz) noexcept
 class ErrNo {
   int err_no;
 
-  public:
-  [[nodiscard]] inline ErrNo() noexcept
-    : err_no(errno) {}
+public:
+  [[nodiscard]] inline ErrNo() noexcept : err_no(errno) {}
   inline explicit ErrNo(int err_no) noexcept
-    : err_no(err_no) {}
+      : err_no(err_no){}
 
-  [[nodiscard]] inline auto msg() const noexcept -> std::string_view {
+            [[nodiscard]] inline auto msg() const noexcept -> std::string_view {
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     return strerror(err_no);
   }
@@ -112,30 +107,29 @@ class ErrNo {
 };
 
 [[nodiscard]] auto secure_recv(int fd)
-  -> std::pair<size_t, std::unique_ptr<char[]>>;
+    -> std::pair<size_t, std::unique_ptr<char[]>>;
 
-  // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-  extern hostent * hostip;
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+extern hostent *hostip;
 
-  auto secure_send(int fd, char * data, size_t len) -> std::optional<size_t>;
+auto secure_send(int fd, char *data, size_t len) -> std::optional<size_t>;
 
-  /**
-   * It constructs the message to be sent.
-   * It takes as arguments a destination char ptr, the payload (data to be
-   sent)
-   * and the payload size.
-   * It returns the expected message format at dst ptr;
-   *
-   *  |<---msg size (4 bytes)--->|<---payload (msg size bytes)--->|
-   *
-   *
-   */
-  inline void construct_message(char * dst,
-      const char * payload,
-      size_t payload_size) {
-    convert_int_to_byte_array(dst, payload_size);
-    ::memcpy(dst + length_size_field, payload, payload_size);
-  }
+/**
+ * It constructs the message to be sent.
+ * It takes as arguments a destination char ptr, the payload (data to be
+ sent)
+ * and the payload size.
+ * It returns the expected message format at dst ptr;
+ *
+ *  |<---msg size (4 bytes)--->|<---payload (msg size bytes)--->|
+ *
+ *
+ */
+inline void construct_message(char *dst, const char *payload,
+                              size_t payload_size) {
+  convert_int_to_byte_array(dst, payload_size);
+  ::memcpy(dst + length_size_field, payload, payload_size);
+}
 
 static void sent_init_connection_request(int port, int sockfd) {
 
@@ -148,15 +142,13 @@ static void sent_init_connection_request(int port, int sockfd) {
   std::cout << __func__ << " sent already:" << port << "\n";
 }
 
-
-
-
 #pragma once
-static int connect_to_the_server(int port, char const * /*hostname*/, int& sending_sock) {
+static int connect_to_the_server(int port, char const * /*hostname*/,
+                                 int &sending_sock) {
   // NOLINTNEXTLINE(concurrency-mt-unsafe)
   hostent *he = hostip;
   auto rep_fd = 0;
-  auto sockfd =0;
+  auto sockfd = 0;
   if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
     fmt::print("socket\n");
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
@@ -171,7 +163,7 @@ static int connect_to_the_server(int port, char const * /*hostname*/, int& sendi
   memset(&(their_addr.sin_zero), 0, sizeof(their_addr.sin_zero));
 
   if (connect(sockfd, reinterpret_cast<sockaddr *>(&their_addr),
-        sizeof(struct sockaddr)) == -1) {
+              sizeof(struct sockaddr)) == -1) {
     fmt::print("connect issue\n");
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     exit(1);
@@ -180,7 +172,7 @@ static int connect_to_the_server(int port, char const * /*hostname*/, int& sendi
   // init the listening socket
   int ret = 1;
   port = client_base_addr;
-  sent_init_connection_request(port, sockfd);
+  // sent_init_connection_request(port, sockfd);
   sending_sock = sockfd;
 
   int repfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -201,7 +193,7 @@ static int connect_to_the_server(int port, char const * /*hostname*/, int& sendi
   my_addr.sin_port = htons(port);       // short, network byte order
   my_addr.sin_addr.s_addr = INADDR_ANY; // automatically fill with my IP
   memset(&(my_addr.sin_zero), 0,
-      sizeof(my_addr.sin_zero)); // zero the rest of the struct
+         sizeof(my_addr.sin_zero)); // zero the rest of the struct
 
   if (bind(repfd, reinterpret_cast<sockaddr *>(&my_addr), sizeof(sockaddr)) ==
       -1) {
@@ -221,7 +213,7 @@ static int connect_to_the_server(int port, char const * /*hostname*/, int& sendi
 
   sockaddr_in tmp_addr{};
   auto new_fd = accept4(repfd, reinterpret_cast<sockaddr *>(&tmp_addr),
-      &sin_size, SOCK_CLOEXEC);
+                        &sin_size, SOCK_CLOEXEC);
   if (new_fd == -1) {
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     fmt::print("accecpt() failed ..{}\n", std::strerror(errno));
@@ -243,7 +235,8 @@ static void sent_request(char *request, size_t size, int sockfd) {
   // fmt::print("{} sents {} bytes\n", __func__, size);
 }
 
-auto recv_ack(auto listening_socket) -> std::pair<int, std::unique_ptr<char[]>> {
+auto recv_ack(auto listening_socket)
+    -> std::pair<int, std::unique_ptr<char[]>> {
   auto rep_fd = listening_socket;
   auto [bytecount, buffer] = secure_recv(rep_fd);
   if (buffer == nullptr) {
@@ -261,17 +254,13 @@ auto recv_ack(auto listening_socket) -> std::pair<int, std::unique_ptr<char[]>> 
   return std::make_pair(bytecount, std::move(buffer));
 }
 
-
-
- inline auto destruct_message(char * msg, size_t bytes)
+inline auto destruct_message(char *msg, size_t bytes)
     -> std::optional<uint32_t> {
-    if (bytes < 4) {
-	fmt::print("{} error\n", __func__);
+  if (bytes < 4) {
+    fmt::print("{} error\n", __func__);
     return std::nullopt;
-    }
-  
-    auto actual_msg_size = convert_byte_array_to_int(msg);
-    return actual_msg_size;
   }
 
-
+  auto actual_msg_size = convert_byte_array_to_int(msg);
+  return actual_msg_size;
+}
