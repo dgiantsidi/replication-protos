@@ -7,7 +7,7 @@ LD_FLAGS=-lcrypto  -lfmt #-lcityhash -lgflags #-fsanitize=address
 
 SRCs = net/shared.cpp
 
-target: bench
+target: server
 
 all: clean main1 main2 main3 bench server
 main1: clean
@@ -19,7 +19,7 @@ main3:
 bench: clean
 	$(CXX) $(CXX_FLAGS) $(INCLUDES) bench.cc $(LDS) $(LD_FLAGS) -o $@ 
 
-server:  clean
+server:  clean client
 	$(CXX) $(CXX_FLAGS) $(INCLUDES) attest_server.cc $(SRCs) $(LDS) $(LD_FLAGS) -o $@ 
 
 client: 
