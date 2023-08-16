@@ -1,6 +1,6 @@
 #pragma once
 #include "sha256.hpp"
-#include <city.h>
+// #include <city.h>
 #include <cstring>
 #include <fmt/printf.h>
 #include <iostream>
@@ -10,7 +10,7 @@
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 #include <openssl/ssl.h>
-
+constexpr int signature_size = 256;
 char publicKey[] =
     "-----BEGIN PUBLIC KEY-----\n"
     "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAy8Dbv8prpJ/0kKhlGeJY\n"
@@ -111,7 +111,7 @@ int priv_sign(const char *data, int data_len, uint8_t *key,
 #ifdef PRINT_DEBUG
   fmt::print("[{}]\n", __func__);
 #endif
-  auto a = CityHash32(data, data_len);
+ auto a = 128; // TODO: CityHash32(data, data_len);
 #ifdef PRINT_DEBUG
   fmt::print("[{}] Text to be encrypted={}\n", __PRETTY_FUNCTION__, a);
 #endif

@@ -53,8 +53,7 @@ auto secure_recv(int fd) -> std::pair<size_t, std::unique_ptr<char[]>> {
   }
 
   auto actual_msg_size = *actual_msg_size_opt;
-  auto buf = std::make_unique<char[]>(static_cast<size_t>(actual_msg_size) + 1);
-  buf[actual_msg_size] = '\0';
+  auto buf = std::make_unique<char[]>(static_cast<size_t>(actual_msg_size));
   std::cout << __func__ << " " << static_cast<int>(actual_msg_size) << "\n";
   if (auto byte_read = read_n(fd, buf.get(), actual_msg_size);
       byte_read != actual_msg_size) {

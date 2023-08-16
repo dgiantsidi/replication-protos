@@ -13,7 +13,7 @@
 #include <thread>
 #include <time.h>
 #include <unistd.h>
-
+#include "enc_lib.h"
 #include <vector>
 
 constexpr std::string_view usage = "usage: ./server <nb_server_threads> <port>";
@@ -137,22 +137,32 @@ auto main(int argc, char *argv[]) -> int {
       // TODO: do some error handling here
     }
 
-    // TODO: auto ptr = attest(bytecount, buffer);
+    auto encrypted = std::make_unique<char[]>(signature_size);
+    uint8_t* ptr_enc = reinterpret_cast<uint8_t *>(encrypted.get());
+        int encrypted_length = priv_sign_sha256(
+         reinterpret_cast<char *>(buffer.get()), bytecount,
+         reinterpret_cast<uint8_t *>(privateKey), ptr_enc, signature_size);
+     if (encrypted_length == -1) {
+       fmt::print("[{}] signing w/ priv key failed.\n", __PRETTY_FUNCTION__);
+       exit(0);
+     }
+#if 0
     for (auto i = 0ULL; i < bytecount; i++) {
       fmt::print("{}", static_cast<int>(buffer.get()[i]));
     }
     fmt::print("\n");
+#endif
 
-    auto signature_sz = 256;
     auto ptr =
-        std::make_unique<char[]>(bytecount + signature_sz + length_size_field);
-    construct_message(ptr.get(), ptr.get(), (bytecount + signature_sz));
+        std::make_unique<char[]>(encrypted_length + length_size_field);
+    construct_message(ptr.get(), encrypted.get(), (encrypted_length));
     auto actual_sz = destruct_message(ptr.get(), length_size_field);
-    std::cout << "size=" << (bytecount + signature_sz)
+    std::cout << "size=" << (encrypted_length + length_size_field)
               << " actual_sz=" << *actual_sz
               << " to reply_socket = " << reply_socket << "\n";
     secure_send(reply_socket, ptr.get(),
-                (bytecount + signature_sz + length_size_field));
+                (encrypted_length + length_size_field));
+    std::cout << "send done\n";
   }
 
   return 0;

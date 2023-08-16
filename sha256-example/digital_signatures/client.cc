@@ -60,7 +60,7 @@ void client(int port, std::unique_ptr<char[]> buf, size_t size) {
 auto main(int argc, char *argv[]) -> int {
   // NOLINTNEXTLINE(concurrency-mt-unsafe)
   auto port = 18000;
-  auto sz = 128 + 256;
+  auto sz = 128;
   std::unique_ptr<char[]> buf = std::make_unique<char[]>(sz);
   client(port, std::move(buf), sz);
 }
