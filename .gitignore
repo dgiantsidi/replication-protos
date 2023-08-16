@@ -9,3 +9,5 @@ dependencies
 digital_signatures/*.out
 **/**/bench
 **/**/openssl
+**/**/client
+**/**/server
