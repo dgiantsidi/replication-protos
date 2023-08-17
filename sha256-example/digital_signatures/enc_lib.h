@@ -170,11 +170,14 @@ int priv_sign_sha256(const char *data, int data_len, uint8_t *key,
                           reinterpret_cast<uint8_t *>(signed_msg));
 //  fmt::print("{} signature_sz={}\n", __func__, k);
 #ifdef PRINT_DEBUG
+
+/*
   fmt::print("\n");
   for (auto i = 0; i < k; i++) {
     fmt::print("{}", signed_msg[i]);
   }
   fmt::print("\n");
+  */
 #endif
   return k;
 }

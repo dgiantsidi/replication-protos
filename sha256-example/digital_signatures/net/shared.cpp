@@ -54,15 +54,17 @@ auto secure_recv(int fd) -> std::pair<size_t, std::unique_ptr<char[]>> {
 
   auto actual_msg_size = *actual_msg_size_opt;
   auto buf = std::make_unique<char[]>(static_cast<size_t>(actual_msg_size));
-  std::cout << __func__ << " " << static_cast<int>(actual_msg_size) << "\n";
+  // std::cout << __func__ << " " << static_cast<int>(actual_msg_size) << "\n";
   if (auto byte_read = read_n(fd, buf.get(), actual_msg_size);
       byte_read != actual_msg_size) {
     debug_print("[{}] Length of message is incorrect got {} expected {}\n",
                 __func__, byte_read, actual_msg_size);
+    /*
     for (auto i = 0ULL; i < byte_read; i++) {
       fmt::print("{}", static_cast<int>(buf.get()[i]));
     }
     fmt::print("\n");
+    */
     return {0, nullptr};
   }
 
@@ -72,10 +74,13 @@ auto secure_recv(int fd) -> std::pair<size_t, std::unique_ptr<char[]>> {
 }
 
 auto secure_send(int fd, char *data, size_t len) -> std::optional<size_t> {
+
+/*
   for (auto i = 0ULL; i < len; i++) {
     fmt::print("{}", static_cast<int>(data[i]));
   }
   fmt::print("\n");
+  */
   auto bytes = 0LL;
   auto remaining_bytes = len;
 
