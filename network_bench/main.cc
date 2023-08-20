@@ -121,6 +121,7 @@ void send_req(int idx, int dest_id, app_context *ctx) {
 }
 
 void poll(app_context *ctx) {
+  ctx->rpc->run_event_loop_once();
   if (ctx->enqueued_msgs_cnt % 2 == 0) {
     for (auto i = 0; i < 10; i++)
       ctx->rpc->run_event_loop_once();
@@ -157,15 +158,26 @@ void sender_func(app_context *ctx, const std::string &uri) {
              __PRETTY_FUNCTION__, ctx->instance_id, ctx->thread_id, uri);
   create_session(uri, mode::receiver, ctx);
   ctx->rpc->run_event_loop(100);
+  auto start = std::chrono::high_resolution_clock::now();
   for (auto i = 0ULL; i < FLAGS_reqs_num; i++) {
     send_req(i, mode::sender, ctx);
-    poll(ctx);
+    // dimitra: this is for latency measurements
+    while (ctx->received_msgs_cnt.load() < (i + 1)) {
+      //    fmt::print("{} {}\n", ctx->received_msgs_cnt.load(), (i+1));
+      poll(ctx);
+    }
   }
   fmt::print("{} polls until the end ...\n", __func__);
   for (;;) {
     ctx->rpc->run_event_loop_once();
     if (ctx->received_msgs_cnt.load() == FLAGS_reqs_num) {
-      fmt::print("[{}] received all msgs \n", __func__);
+      auto elapsed = std::chrono::high_resolution_clock::now() - start;
+      long long time_us =
+          std::chrono::duration_cast<std::chrono::microseconds>(elapsed)
+              .count();
+      auto lat = static_cast<float>(time_us) / (1.0 * FLAGS_reqs_num);
+      fmt::print("[{}] received all msgs={} in {} us (latency={})\n", __func__,
+                 FLAGS_reqs_num, time_us, lat);
       ctx->rpc->run_event_loop(2000);
       break;
     }
