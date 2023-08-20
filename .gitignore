@@ -11,3 +11,4 @@ digital_signatures/*.out
 **/**/openssl
 **/**/client
 **/**/server
+**/build
