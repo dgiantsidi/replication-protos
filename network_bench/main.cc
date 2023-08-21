@@ -1,4 +1,5 @@
 #include "common.h"
+#include "net_sgx/apis.h"
 #include "util/numautils.h"
 #include <chrono>
 #include <cstring>
@@ -52,7 +53,7 @@ public:
   rpc_handle *rpc = nullptr;
   int node_id = 0, thread_id = 0;
   int instance_id = 0; /* instance id used to create the rpcs */
-
+  authenticator *auth = nullptr;
   uint64_t enqueued_msgs_cnt = 0;
   std::atomic<uint64_t> received_msgs_cnt = {0};
   std::atomic<uint64_t> sent_acks_cnt = {0};
@@ -94,16 +95,19 @@ void send_req(int idx, int dest_id, app_context *ctx) {
     auto ptr = std::make_unique<uint8_t[]>(sz);
     return std::make_pair(sz, std::move(ptr));
   };
-  //  auto res = mock(256);
-  auto [bytecount, attestation] = mock(256);
-  //  auto bytecount = std::get<0>(res);
-  //  auto attestation = std::get<1>(res);
+
+  auto get_attestation =
+      [](int sz, uint8_t *data,
+         authenticator *auth) -> std::pair<size_t, std::unique_ptr<char[]>> {
+    auto [attestation_sz, attestation] =
+        auth->get_attestation_from_sgx(sz, reinterpret_cast<char *>(data));
+    return std::make_pair(attestation_sz, std::move(attestation));
+  };
+
+  auto [bytecount, attestation] =
+      get_attestation(msg_size, msg_buf.get(), ctx->auth); // mock(256);
   auto to_be_sent_sz = bytecount + msg_size;
-  /*
-   * auto [bytecount, attestation] = attest_with_sgx(std::move(msg_buf));
-   * auto to_be_sent_sz = bytecount + msg_size;
-   *
-   */
+
   // needs to send
   rpc_buffs *buffs = new rpc_buffs();
   buffs->alloc_req_buf(to_be_sent_sz, ctx->rpc);
@@ -216,9 +220,11 @@ void proto_func(size_t thread_id, erpc::Nexus *nexus) {
   std::this_thread::sleep_for(5000ms);
   /* we can start */
 
-  if (FLAGS_process_id == mode::sender)
+  if (FLAGS_process_id == mode::sender) {
+    ctx->auth = new authenticator();
     sender_func(ctx, std::string{kmartha});
-  else if (FLAGS_process_id == mode::receiver)
+    delete ctx->auth;
+  } else if (FLAGS_process_id == mode::receiver)
     receiver_func(ctx);
   else {
     fmt::print("[{}] error\n", __PRETTY_FUNCTION__);
