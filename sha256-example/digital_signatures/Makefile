@@ -1,6 +1,6 @@
 export CUR_PATH=$(shell $(pwd))
 CXX=g++
-CXX_FLAGS=-Wall -std=c++17 -Wno-error -Wall -g# -fsanitize=address
+CXX_FLAGS=-Wall -std=c++17 -Wno-error -Wall -g -O3 -mavx# -fsanitize=address
 INCLUDES=-I/usr/local/include -I/usr/local/ssl/include -I./net
 LDS=-L/usr/local/lib -L/usr/local/ssl/lib64
 LD_FLAGS=-lcrypto -lfmt #-lcityhash -lgflags #-fsanitize=address
