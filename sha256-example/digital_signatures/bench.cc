@@ -12,9 +12,7 @@
 #include <openssl/ssl.h>
 
 DEFINE_uint64(msg_size, 64, "Size of request message in bytes");
-DEFINE_uint64(reps, 10, "repetitions");
-
-static const int signature_size = 256; // RSA_size(rsa);
+DEFINE_uint64(reps, 10000, "repetitions");
 
 int main(int args, char *argv[]) {
   gflags::ParseCommandLineFlags(&args, &argv, true);
@@ -61,23 +59,23 @@ int main(int args, char *argv[]) {
     return true;
   };
 
-  auto start1 = std::chrono::system_clock::now();
+  auto start1 = std::chrono::high_resolution_clock::now();
   int encrypted_length = -1;
   for (auto i = 0ULL; i < reps; i++) {
     encrypted_length = sign_per(reinterpret_cast<char *>(plainText), msg_size);
   }
-  auto end1 = std::chrono::system_clock::now();
+  auto end1 = std::chrono::high_resolution_clock::now();
   for (auto i = 0; i < encrypted_length; i++) {
     fmt::print("{}", encrypted[i]);
   }
   fmt::print("\n");
-  auto start2 = std::chrono::system_clock::now();
+  auto start2 = std::chrono::high_resolution_clock::now();
   bool res = true;
   for (auto i = 0ULL; i < reps; i++) {
     res &= dec_per(reinterpret_cast<char *>(plainText), msg_size,
                    encrypted_length);
   }
-  auto end2 = std::chrono::system_clock::now();
+  auto end2 = std::chrono::high_resolution_clock::now();
   // TODO: take time
   if (res)
     fmt::print("ola kala!\n");
@@ -86,11 +84,16 @@ int main(int args, char *argv[]) {
   }
   fmt::print("\n");
 
-  std::chrono::duration<double> elapsed_seconds1 = end1 - start1;
-  std::chrono::duration<double> elapsed_seconds2 = end2 - start2;
-  std::cout << "elapsed time: " << elapsed_seconds1.count() << "s for " << reps
+  auto elapsed1 = end1 - start1;
+  auto elapsed2 = end2 - start2;
+  long long avg_duration1 =
+      std::chrono::duration_cast<std::chrono::microseconds>(elapsed1).count();
+  long long avg_duration2 =
+      std::chrono::duration_cast<std::chrono::microseconds>(elapsed2).count();
+
+  std::cout << "elapsed time: " << avg_duration1 << " us for " << reps
             << " rsa+sha256 (sign)" << std::endl;
-  std::cout << "elapsed time: " << elapsed_seconds2.count() << "s for " << reps
+  std::cout << "elapsed time: " << avg_duration2 << " us for " << reps
             << " rsa+sha256 (verify)" << std::endl;
 
   delete[] encrypted;
