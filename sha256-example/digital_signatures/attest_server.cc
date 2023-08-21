@@ -136,6 +136,7 @@ auto main(int argc, char *argv[]) -> int {
         auto [bytecount, buffer] = secure_recv(new_fd);
         if (static_cast<int>(bytecount) <= 0) {
             // TODO: do some error handling here
+          fmt::print("[{}] error\n", __func__);
         }
 
         auto process = [&] () -> std::pair<int, std::unique_ptr<char[]>> {
