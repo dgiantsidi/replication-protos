@@ -7,6 +7,7 @@ project (network_benchmark)
 link_directories($ENV{HOME}/workspace/replication-protos/eRPC/build)
 link_directories($ENV{HOME}/workspace/replication-protos/dpdk-stable-19.11.14/usr/lib)
 include_directories($ENV{HOME}/workspace/replication-protos/eRPC/src)
+include_directories($ENV{HOME}/workspace/replication-protos/network_bench/net_sgx)
 include_directories($ENV{HOME}/workspace/replication-protos/dpdk-stable-19.11.14/x86_64-native-linuxapp-gcc/include)
 
 SET(CMAKE_CXX_FLAGS  "-DERPC_DPDK=true -g -fsanitize=address --std=c++20")
@@ -17,8 +18,8 @@ endif()
 
 
 
-add_executable(bench_donna main.cc $ENV{HOME}/workspace/replication-protos/eRPC/build/src/config.h)
-add_executable(bench_martha main.cc $ENV{HOME}/workspace/replication-protos/eRPC/build/src/config.h)
+add_executable(bench_donna main.cc net_sgx/shared.cpp $ENV{HOME}/workspace/replication-protos/eRPC/build/src/config.h)
+add_executable(bench_martha main.cc net_sgx/shared.cpp $ENV{HOME}/workspace/replication-protos/eRPC/build/src/config.h)
 
 
 
