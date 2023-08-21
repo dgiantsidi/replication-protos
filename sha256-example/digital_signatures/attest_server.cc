@@ -203,7 +203,8 @@ auto main(int argc, char *argv[]) -> int {
        */
     secure_send(reply_socket, ptr.get(),
                 (encrypted_length + length_size_field));
-    fmt::print("{}\r", cnt);
+    if (cnt % 1000 == 0)
+      fmt::print("{}\n", cnt);
     cnt++;
   }
 
