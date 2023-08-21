@@ -37,10 +37,9 @@ void client(int port, std::unique_ptr<char[]> buf, size_t size) {
   fmt::print("[{}] connect_to_the_server sending_fd={} fd={}\n", __func__,
              sending_fd, fd);
 
-
   auto start = std::chrono::high_resolution_clock::now();
   for (auto i = 0; i < 10000; i++) {
- //   fmt::print("[{}] \n", __func__);
+    //   fmt::print("[{}] \n", __func__);
     auto sending_sz = size + length_size_field;
     auto buff = std::make_unique<char[]>(sending_sz);
 
@@ -60,9 +59,12 @@ void client(int port, std::unique_ptr<char[]> buf, size_t size) {
     // fmt::print("[{}] recv_ack\n", __func__);
   }
   auto elapsed = std::chrono::high_resolution_clock::now() - start;
-  long long avg_duration = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
+  long long avg_duration =
+      std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
 
-  std::cout << "RESULT: " << avg_duration << " and latency=" << static_cast<float>(avg_duration*1.0/(10000*1.0)) << "us \n";
+  std::cout << "RESULT: " << avg_duration << " and latency="
+            << static_cast<float>(avg_duration * 1.0 / (10000 * 1.0))
+            << "us \n";
 }
 
 auto main(int argc, char *argv[]) -> int {
@@ -70,6 +72,6 @@ auto main(int argc, char *argv[]) -> int {
   auto port = 18000;
   auto sz = 64;
   std::unique_ptr<char[]> buf = std::make_unique<char[]>(sz);
-//  ::memset(buf.get(), '1', sz);
+  //  ::memset(buf.get(), '1', sz);
   client(port, std::move(buf), sz);
 }
