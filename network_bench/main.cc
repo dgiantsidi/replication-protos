@@ -179,7 +179,7 @@ void sender_func(app_context *ctx, const std::string &uri) {
       long long time_us =
           std::chrono::duration_cast<std::chrono::microseconds>(elapsed)
               .count();
-      auto lat = static_cast<float>(time_us) / (1.0 * FLAGS_reqs_num);
+      auto lat = static_cast<float>(time_us) / (1.0 * FLAGS_reqs_num * 2);
       fmt::print("[{}] received all msgs={} in {} us (latency={})\n", __func__,
                  FLAGS_reqs_num, time_us, lat);
       ctx->rpc->run_event_loop(2000);
@@ -224,9 +224,11 @@ void proto_func(size_t thread_id, erpc::Nexus *nexus) {
     ctx->auth = new authenticator();
     sender_func(ctx, std::string{kmartha});
     delete ctx->auth;
-  } else if (FLAGS_process_id == mode::receiver)
+  } else if (FLAGS_process_id == mode::receiver) {
+    ctx->auth = new authenticator();
     receiver_func(ctx);
-  else {
+    delete ctx->auth;
+  } else {
     fmt::print("[{}] error\n", __PRETTY_FUNCTION__);
   }
 
@@ -267,7 +269,17 @@ void req_handler_latency(erpc::ReqHandle *req_handle,
     auto ptr = std::make_unique<uint8_t[]>(sz);
     return std::make_pair(sz, std::move(ptr));
   };
-  auto [bytecount, attestation] = mock(256);
+  auto get_attestation =
+      [](int sz, uint8_t *data,
+         authenticator *auth) -> std::pair<size_t, std::unique_ptr<char[]>> {
+    auto [attestation_sz, attestation] =
+        auth->get_attestation_from_sgx(sz, reinterpret_cast<char *>(data));
+    return std::make_pair(attestation_sz, std::move(attestation));
+  };
+
+  auto [bytecount, attestation] =
+      get_attestation(msg_size, msg_buf.get(), ctx->auth); // mock(256);
+  // auto [bytecount, attestation] = mock(256);
   auto to_be_sent_sz = bytecount + msg_size;
   /*
    * auto [bytecount, attestation] = attest_with_sgx(std::move(msg_buf));
