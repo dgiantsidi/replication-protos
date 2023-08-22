@@ -10,8 +10,8 @@ plt.rcParams['hatch.linewidth'] = 2.5
 palette = sns.color_palette("pastel")
 
 
-plt.rcParams["figure.figsize"] = (18, 8)
-plt.rcParams.update({'font.size': 40})
+plt.rcParams["figure.figsize"] = (21, 8)
+plt.rcParams.update({'font.size': 60})
 
 fig, ax = plt.subplots()
 
@@ -27,7 +27,6 @@ plt.ylim([0, math.ceil(high+0.5*(high-low))])
 width = 0.10
 x2 = [r+width for r in x]
 x3 = [r+width for r in x2]
-
 ax.bar(x, sha_lat_64, width, color= palette[3], hatch="o", edgecolor="black", label="64B")
 ax.bar(x2, sha_lat_128, width, color= palette[4], hatch="X", edgecolor="black", label="128B")
 ax.bar(x3, sha_lat_256, width, color= palette[2], hatch="-", edgecolor="black", label="1K")

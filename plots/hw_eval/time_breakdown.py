@@ -20,8 +20,8 @@ plt.rcParams['hatch.linewidth'] = 2.5
 palette = sns.color_palette("pastel")
 
 
-plt.rcParams["figure.figsize"] = (4, 4)
-plt.rcParams.update({'font.size': 40})
+plt.rcParams["figure.figsize"] = (14, 6)
+plt.rcParams.update({'font.size': 30})
 
 fig, ax = plt.subplots()
 bottom = np.zeros(3)
