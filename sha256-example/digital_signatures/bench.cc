@@ -1,5 +1,7 @@
 // #include "signed_msg.h"
+#include "botan_enc_lib.h"
 #include "enc_lib.h"
+#include "openssl/hmac.h"
 #include <chrono>
 #include <cstring>
 #include <gflags/gflags.h>
@@ -13,6 +15,25 @@
 
 DEFINE_uint64(msg_size, 64, "Size of request message in bytes");
 DEFINE_uint64(reps, 10000, "repetitions");
+
+std::vector<unsigned char> hmac_sha256(const unsigned char *data, size_t sz) {
+  std::string key = {
+      "vzxgPuegSjRksLnCAu/"
+      "LElxWRonjVkCoArWzZqliiSEtmlbaCfZaGkrSweWJKQkgQsyrBUpSusAcPcGDfFhWOx=="};
+  unsigned int len = EVP_MAX_MD_SIZE;
+  std::vector<unsigned char> digest(len);
+
+  HMAC_CTX *ctx = HMAC_CTX_new();
+  HMAC_CTX_reset(ctx);
+
+  HMAC_Init_ex(ctx, key.data(), key.size(), EVP_sha256(), NULL);
+  HMAC_Update(ctx, data, sz);
+  HMAC_Final(ctx, digest.data(), &len);
+
+  HMAC_CTX_free(ctx);
+
+  return digest;
+}
 
 int main(int args, char *argv[]) {
   gflags::ParseCommandLineFlags(&args, &argv, true);
@@ -37,6 +58,21 @@ int main(int args, char *argv[]) {
     return encrypted_length;
   };
 
+  auto hmac_per = [&encrypted, &decrypted](char *plainText, size_t msg_size,
+                                           size_t encrypted_length) -> bool {
+    const unsigned char *data = reinterpret_cast<unsigned char *>(plainText);
+    auto res = hmac_sha256(data, msg_size);
+    if (res.size() != 0) {
+#if 0
+     for (auto& elem : res)
+         fmt::print("{}", elem);
+     fmt::print("\n");
+#endif
+      return true;
+    }
+    return false;
+  };
+
   auto dec_per = [&encrypted, &decrypted](char *plainText, size_t msg_size,
                                           size_t encrypted_length) -> bool {
     int decrypted_length =
@@ -53,9 +89,34 @@ int main(int args, char *argv[]) {
     auto computed_hash =
         get_sha256(reinterpret_cast<char *>(plainText), msg_size);
     if (::memcmp(computed_hash.get(), decrypted_hash, max_hash_sz) != 0) {
-      fmt::print("[{}] ERROR: hashes do not match\n", __PRETTY_FUNCTION__);
+      // fmt::print("[{}] ERROR: hashes do not match\n", __PRETTY_FUNCTION__);
       return false;
     }
+    return true;
+  };
+
+  std::string key =
+      "NE1YQmdkUG5HUkJVaUVpR0FYUUpDbXl5em90MGtHMjY="; // ==
+                                                      // 4MXBgdPnGRBUiEiGAXQJCmyyzot0kG26
+  std::string iv =
+      "b3V5UzVDdkxIQXFVaVdBaE9tZzNmcHJQMzVTVjFTZGg="; // ==
+                                                      // ouyS5CvLHAqUiWAhOmg3fprP35SV1Sdh
+
+  std::string enc_str;
+  auto aesgcm_enc_per = [&](char *plainText, size_t msg_size) -> bool {
+    enc_str = EncryptString(
+        std::string(reinterpret_cast<const char *>(plainText), msg_size), key,
+        iv);
+    if (enc_str.size() > 0)
+      return true;
+    return false;
+  };
+  std::string dec_str;
+  auto aesgcm_dec_per = [&]() -> bool {
+    dec_str = DecryptString(enc_str, key, iv);
+    if (dec_str !=
+        std::string(reinterpret_cast<const char *>(plainText), msg_size))
+      return false;
     return true;
   };
 
@@ -76,6 +137,26 @@ int main(int args, char *argv[]) {
                    encrypted_length);
   }
   auto end2 = std::chrono::high_resolution_clock::now();
+
+  auto start3 = std::chrono::high_resolution_clock::now();
+  for (auto i = 0ULL; i < reps; i++) {
+    res &= hmac_per(reinterpret_cast<char *>(plainText), msg_size,
+                    encrypted_length);
+  }
+  auto end3 = std::chrono::high_resolution_clock::now();
+
+  auto start4 = std::chrono::high_resolution_clock::now();
+  for (auto i = 0ULL; i < reps; i++) {
+    res &= aesgcm_enc_per(reinterpret_cast<char *>(plainText), msg_size);
+  }
+  auto end4 = std::chrono::high_resolution_clock::now();
+
+  auto start5 = std::chrono::high_resolution_clock::now();
+  for (auto i = 0ULL; i < reps; i++) {
+    res &= aesgcm_dec_per();
+  }
+  auto end5 = std::chrono::high_resolution_clock::now();
+
   // TODO: take time
   if (res)
     fmt::print("ola kala!\n");
@@ -86,15 +167,30 @@ int main(int args, char *argv[]) {
 
   auto elapsed1 = end1 - start1;
   auto elapsed2 = end2 - start2;
+  auto elapsed3 = end3 - start3;
+  auto elapsed4 = end4 - start4;
+  auto elapsed5 = end5 - start5;
   long long avg_duration1 =
       std::chrono::duration_cast<std::chrono::microseconds>(elapsed1).count();
   long long avg_duration2 =
       std::chrono::duration_cast<std::chrono::microseconds>(elapsed2).count();
+  long long avg_duration3 =
+      std::chrono::duration_cast<std::chrono::microseconds>(elapsed3).count();
+  long long avg_duration4 =
+      std::chrono::duration_cast<std::chrono::microseconds>(elapsed4).count();
+  long long avg_duration5 =
+      std::chrono::duration_cast<std::chrono::microseconds>(elapsed5).count();
 
   std::cout << "elapsed time: " << avg_duration1 << " us for " << reps
             << " rsa+sha256 (sign)" << std::endl;
   std::cout << "elapsed time: " << avg_duration2 << " us for " << reps
             << " rsa+sha256 (verify)" << std::endl;
+  std::cout << "elapsed time: " << avg_duration3 << " us for " << reps
+            << " hmac-sha256" << std::endl;
+  std::cout << "elapsed time: " << avg_duration4 << " us for " << reps
+            << " aes-gcm (enc)" << std::endl;
+  std::cout << "elapsed time: " << avg_duration5 << " us for " << reps
+            << " aes-gcm (dec)" << std::endl;
 
   delete[] encrypted;
   delete[] decrypted;

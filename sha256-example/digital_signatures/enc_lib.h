@@ -11,6 +11,23 @@
 #include <openssl/rsa.h>
 #include <openssl/ssl.h>
 constexpr int signature_size = 256;
+char privateKey2[] =
+    "-----BEGIN RSA PRIVATE KEY-----"
+    "MIIBOgIBAAJBAILofW2oDPrWg87bwc9KK6uNKIP40GhEsF5P5MXWnRxKZW8mudih\n"
+    "u7ja4nnhBweLZ15Mfp88NqCQRPO1vrNOHysCAwEAAQJAOPY7Jcz7IObY4dkD41QN\n"
+    "3o8EszBAVy6UY+V10ZRKNvWUd3yVXvo1Hp93QjrRWICkiXzhB3Vgb7ayLUxQAMAy\n"
+    "0QIhAMeI9b0s14aQbhLLJZYE266ibnfnrjZVgEN62ZWhJTmTAiEAp/Pz6sQDjXC0\n"
+    "EpLbjCCgCcvAxjIPwdIc440uBRlgIwkCIBktCbyFxOfgn1LVuPdVw5YkPoX4gH2w\n"
+    "ig95l6yOeZDrAiB4B7PZoy56xgIbiBMZqTNW7OQfgSWbukLlKT+ra0A2qQIhAKZ7\n"
+    "XVy5YuytNH60nwMYNeQ1issJUnv2cxEh6DbdQCum\n"
+    "-----END RSA PRIVATE KEY-----\n";
+
+char publicKey2[] =
+    "-----BEGIN PUBLIC KEY-----"
+    "MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAILofW2oDPrWg87bwc9KK6uNKIP40GhE"
+    "sF5P5MXWnRxKZW8mudihu7ja4nnhBweLZ15Mfp88NqCQRPO1vrNOHysCAwEAAQ=="
+    "-----END PUBLIC KEY-----\n";
+
 char publicKey[] =
     "-----BEGIN PUBLIC KEY-----\n"
     "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAy8Dbv8prpJ/0kKhlGeJY\n"
@@ -101,6 +118,12 @@ int private_encrypt(unsigned char *data, int data_len, unsigned char *key,
 int public_decrypt(unsigned char *enc_data, int data_len, unsigned char *key,
                    unsigned char *decrypted) {
   RSA *rsa = createRSA(key, 1);
+  /*
+  if (rsa == nullptr)
+      return 0;
+  else {
+  int result = 1;
+  */
   int result = RSA_public_decrypt(data_len, enc_data, decrypted, rsa, padding);
   RSA_free(rsa);
   return result;
@@ -111,7 +134,7 @@ int priv_sign(const char *data, int data_len, uint8_t *key,
 #ifdef PRINT_DEBUG
   fmt::print("[{}]\n", __func__);
 #endif
- auto a = 128; // TODO: CityHash32(data, data_len);
+  auto a = 128; // TODO: CityHash32(data, data_len);
 #ifdef PRINT_DEBUG
   fmt::print("[{}] Text to be encrypted={}\n", __PRETTY_FUNCTION__, a);
 #endif

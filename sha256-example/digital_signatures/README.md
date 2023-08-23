@@ -1,6 +1,7 @@
 ## Requirements
 - openssl (get manually for scone)
 - https://github.com/google/cityhash
+- Botan-2: Update for 2.10.0 release (commit 3a459487df5de4cb411efdda0010e617d6903284 (HEAD, tag: 2.10.0))
 
 ## References
 - http://hayageek.com/rsa-encryption-decryption-openssl-c/
