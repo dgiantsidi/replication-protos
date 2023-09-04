@@ -131,45 +131,21 @@ int public_decrypt(unsigned char *enc_data, int data_len, unsigned char *key,
 
 int priv_sign(const char *data, int data_len, uint8_t *key,
               uint8_t *&signed_msg, int signature_size) {
-#ifdef PRINT_DEBUG
-  fmt::print("[{}]\n", __func__);
-#endif
+  assert("priv_sign .. \n");
   auto a = 128; // TODO: CityHash32(data, data_len);
-#ifdef PRINT_DEBUG
-  fmt::print("[{}] Text to be encrypted={}\n", __PRETTY_FUNCTION__, a);
-#endif
 
   // signed_msg = new uint8_t[signature_size];
   int k = private_encrypt(reinterpret_cast<uint8_t *>(&a), sizeof(uint32_t),
                           key, reinterpret_cast<uint8_t *>(signed_msg));
-#ifdef PRINT_DEBUG
-  fmt::print("\n");
-  for (auto i = 0; i < k; i++) {
-    fmt::print("{}", signed_msg[i]);
-  }
-  fmt::print("\n");
-#endif
   return k;
 }
 
 int pub_verify(unsigned char *enc_data, int data_len, unsigned char *key,
                unsigned char *decrypted) {
-#ifdef PRINT_DEBUG
-  fmt::print("[{}] data_len={}\n", __PRETTY_FUNCTION__, data_len);
-  fmt::print("\n");
-#endif
-#ifdef PRINT_DEBUG
-  for (auto i = 0; i < data_len; i++) {
-    fmt::print("{}", enc_data[i]);
-  }
-  fmt::print("\n");
-#endif
+  assert("priv_sign .. \n");
   auto i = public_decrypt(enc_data, data_len, key, decrypted);
   uint32_t a;
   ::memcpy(&a, decrypted, sizeof(uint32_t));
-#ifdef PRINT_DEBUG
-  fmt::print("{}\n", a);
-#endif
   return i;
 }
 
@@ -182,55 +158,21 @@ void print_error(const char *msg) {
 
 int priv_sign_sha256(const char *data, int data_len, uint8_t *key,
                      uint8_t *&signed_msg, int signature_size) {
-#ifdef PRINT_DEBUG
-  fmt::print("[{}]\n", __func__);
-#endif
   auto a = get_sha256(data, data_len);
 
-  // signed_msg = new uint8_t[signature_size];
-  // TODO -> 32
   int k = private_encrypt(a.get(), max_hash_sz, key,
                           reinterpret_cast<uint8_t *>(signed_msg));
-//  fmt::print("{} signature_sz={}\n", __func__, k);
-#ifdef PRINT_DEBUG
-
-/*
-  fmt::print("\n");
-  for (auto i = 0; i < k; i++) {
-    fmt::print("{}", signed_msg[i]);
-  }
-  fmt::print("\n");
-  */
-#endif
   return k;
 }
 
 int pub_verify_sha256(unsigned char *enc_data, int data_len, unsigned char *key,
                       unsigned char *decrypted) {
 
-  /*
-fmt::print("[{}] data_len={}\n", __PRETTY_FUNCTION__, data_len);
-fmt::print("\n");
-*/
 
-#ifdef PRINT_DEBUG
-  for (auto i = 0; i < data_len; i++) {
-    fmt::print("{}", enc_data[i]);
-  }
-  fmt::print("\n");
-#endif
 
   auto i = public_decrypt(enc_data, data_len, key, decrypted);
   std::unique_ptr<uint8_t[]> hash =
       std::make_unique<uint8_t[]>(EVP_MAX_MD_SIZE);
-  /*
-  fmt::print("{} EVP_MAX_MD_SIZE={}\tdata_len={} i={}\n", __func__,
-             EVP_MAX_MD_SIZE, data_len, i);
-             */
   ::memcpy(hash.get(), decrypted, EVP_MAX_MD_SIZE);
-  /*
-  for (auto i = 0ULL; i < data_len; i++)
-      fmt::print("{}\n", hash.get()[i]);
-    */
   return i;
 }
