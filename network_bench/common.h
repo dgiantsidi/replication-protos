@@ -4,7 +4,6 @@
 
 static const std::string kdonna = "129.215.165.54";
 static const std::string kmartha = "129.215.165.53";
-static const std::string krose = "129.215.165.52";
 
 static constexpr uint16_t kUDPPort = 31850;
 static constexpr uint8_t kReqType = 2;

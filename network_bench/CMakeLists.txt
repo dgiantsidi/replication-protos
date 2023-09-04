@@ -18,13 +18,15 @@ endif()
 
 
 
-add_executable(bench_donna main.cc net_sgx/shared.cpp $ENV{HOME}/workspace/replication-protos/eRPC/build/src/config.h)
-add_executable(bench_martha main.cc net_sgx/shared.cpp $ENV{HOME}/workspace/replication-protos/eRPC/build/src/config.h)
+#add_executable(bench_donna main.cc net_sgx/shared.cpp $ENV{HOME}/workspace/replication-protos/eRPC/build/src/config.h)
+#add_executable(bench_martha main.cc net_sgx/shared.cpp $ENV{HOME}/workspace/replication-protos/eRPC/build/src/config.h)
+add_executable(bench main.cc net_sgx/shared.cpp $ENV{HOME}/workspace/replication-protos/eRPC/build/src/config.h)
 
 
 
-target_link_libraries(bench_donna -lpthread -lfmt -lnuma -lerpc -lgflags -ldl -Wl,--whole-archive -ldpdk -Wl,--no-whole-archive -lrte_ethdev -Wl,-lrte_port -fsanitize=address)
-target_link_libraries(bench_martha -lpthread -lfmt -lnuma -lerpc -lgflags -ldl -Wl,--whole-archive -ldpdk -Wl,--no-whole-archive -lrte_ethdev -Wl,-lrte_port -fsanitize=address)
+#target_link_libraries(bench_donna -lpthread -lfmt -lnuma -lerpc -lgflags -ldl -Wl,--whole-archive -ldpdk -Wl,--no-whole-archive -lrte_ethdev -Wl,-lrte_port -fsanitize=address)
+target_link_libraries(bench -lpthread -lfmt -lnuma -lerpc -lgflags -ldl -Wl,--whole-archive -ldpdk -Wl,--no-whole-archive -lrte_ethdev -Wl,-lrte_port -fsanitize=address)
+#target_link_libraries(bench_martha -lpthread -lfmt -lnuma -lerpc -lgflags -ldl -Wl,--whole-archive -ldpdk -Wl,--no-whole-archive -lrte_ethdev -Wl,-lrte_port -fsanitize=address)
 
 
 

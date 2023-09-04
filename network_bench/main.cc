@@ -1,5 +1,6 @@
+#include "authenticators/apis.h"
+#include "authenticators/authenticator.h"
 #include "common.h"
-#include "net_sgx/apis.h"
 #include "util/numautils.h"
 #include <chrono>
 #include <cstring>
@@ -11,6 +12,12 @@
 static constexpr int kReqLatency = 1;
 static constexpr int PRINT_BATCH = 50000;
 static constexpr int numa_node = 0;
+enum authenticators {
+  SGX = 0,   /* SGX as trusted entity */
+  SGX_P = 1, /* SGX w/ persistency */
+  SGX_R = 2, /* SGX w/ rollback */
+  TNIC = 3   /* T-FPGA (mocked) */
+};
 
 DEFINE_uint64(num_server_threads, 1, "Number of threads at the server machine");
 DEFINE_uint64(num_client_threads, 1, "Number of threads per client machine");
@@ -20,6 +27,7 @@ DEFINE_uint64(resp_size, 32, "Size of response message in bytes");
 DEFINE_uint64(process_id, 0, "Process id");
 DEFINE_uint64(instance_id, 0, "Instance id (this is to properly set the RPCs");
 DEFINE_uint64(reqs_num, 10, "Number of reqs");
+DEFINE_uint64(authenticator_mode, authenticators::TNIC, "Authenticator type");
 
 using rpc_handle = erpc::Rpc<erpc::CTransport>;
 
@@ -53,7 +61,7 @@ public:
   rpc_handle *rpc = nullptr;
   int node_id = 0, thread_id = 0;
   int instance_id = 0; /* instance id used to create the rpcs */
-  authenticator *auth = nullptr;
+  authenticator_f *auth = nullptr;
   uint64_t enqueued_msgs_cnt = 0;
   std::atomic<uint64_t> received_msgs_cnt = {0};
   std::atomic<uint64_t> sent_acks_cnt = {0};
@@ -98,9 +106,9 @@ void send_req(int idx, int dest_id, app_context *ctx) {
 
   auto get_attestation =
       [](int sz, uint8_t *data,
-         authenticator *auth) -> std::pair<size_t, std::unique_ptr<char[]>> {
+         authenticator_f *auth) -> std::pair<size_t, std::unique_ptr<char[]>> {
     auto [attestation_sz, attestation] =
-        auth->get_attestation_from_sgx(sz, reinterpret_cast<char *>(data));
+        auth->get_attestation(sz, reinterpret_cast<char *>(data));
     return std::make_pair(attestation_sz, std::move(attestation));
   };
 
@@ -161,13 +169,13 @@ void sender_func(app_context *ctx, const std::string &uri) {
   fmt::print("[{}]\tinstance_id={}\tthread_id={}\turi={}.\n",
              __PRETTY_FUNCTION__, ctx->instance_id, ctx->thread_id, uri);
   create_session(uri, mode::receiver, ctx);
-  ctx->rpc->run_event_loop(100);
+  ctx->rpc->run_event_loop(1000);
   auto start = std::chrono::high_resolution_clock::now();
   for (auto i = 0ULL; i < FLAGS_reqs_num; i++) {
     send_req(i, mode::sender, ctx);
     // dimitra: this is for latency measurements
     while (ctx->received_msgs_cnt.load() < (i + 1)) {
-      //    fmt::print("{} {}\n", ctx->received_msgs_cnt.load(), (i+1));
+      // fmt::print("{} {}\n", ctx->received_msgs_cnt.load(), (i+1));
       poll(ctx);
     }
   }
@@ -215,17 +223,40 @@ void proto_func(size_t thread_id, erpc::Nexus *nexus) {
   ctx->rpc = new rpc_handle(nexus, static_cast<void *>(ctx), ctx->instance_id,
                             sm_handler, 0);
 
+  switch (FLAGS_authenticator_mode) {
+
+  case (authenticators::SGX): {
+    fmt::print("[{}] authenticators::SGX\n", __func__);
+    ctx->auth = new auth_sgx();
+    break;
+  }
+  case (authenticators::SGX_P): {
+    fmt::print("[{}] authenticators::SGX_P\n", __func__);
+    ctx->auth = new auth_sgx_with_persistency();
+    break;
+  }
+  case (authenticators::SGX_R): {
+    fmt::print("[{}] authenticators::SGX_R\n", __func__);
+    ctx->auth = new auth_sgx_with_rollback();
+    break;
+  }
+  case (authenticators::TNIC): {
+    fmt::print("[{}] authenticators::TNIC\n", __func__);
+    ctx->auth = new auth_tnic();
+    break;
+  }
+  default:
+    fmt::print("[{}] I shouldn't be here \n", __func__);
+  }
   /* give some time before we start */
   using namespace std::chrono_literals;
   std::this_thread::sleep_for(5000ms);
   /* we can start */
 
   if (FLAGS_process_id == mode::sender) {
-    ctx->auth = new authenticator();
     sender_func(ctx, std::string{kmartha});
     delete ctx->auth;
   } else if (FLAGS_process_id == mode::receiver) {
-    ctx->auth = new authenticator();
     receiver_func(ctx);
     delete ctx->auth;
   } else {
@@ -271,9 +302,9 @@ void req_handler_latency(erpc::ReqHandle *req_handle,
   };
   auto get_attestation =
       [](int sz, uint8_t *data,
-         authenticator *auth) -> std::pair<size_t, std::unique_ptr<char[]>> {
+         authenticator_f *auth) -> std::pair<size_t, std::unique_ptr<char[]>> {
     auto [attestation_sz, attestation] =
-        auth->get_attestation_from_sgx(sz, reinterpret_cast<char *>(data));
+        auth->get_attestation(sz, reinterpret_cast<char *>(data));
     return std::make_pair(attestation_sz, std::move(attestation));
   };
 
@@ -315,8 +346,6 @@ int main(int args, char *argv[]) {
   if (FLAGS_process_id == 0) {
     server_uri = kdonna + ":" + std::to_string(kUDPPort);
   } else if (FLAGS_process_id == 1) {
-    server_uri = krose + ":" + std::to_string(kUDPPort);
-  } else if (FLAGS_process_id == 2) {
     server_uri = kmartha + ":" + std::to_string(kUDPPort);
   } else {
     fmt::print("[{}] not valid process_id={}\n", __func__, FLAGS_process_id);
