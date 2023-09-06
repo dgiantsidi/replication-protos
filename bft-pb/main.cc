@@ -28,6 +28,7 @@ class app_context;
 #if 0
 void send_cmt(int cmt_idx, const std::vector<int> &dest_ids, app_context *ctx);
 #endif
+
 struct rpc_buffs {
   erpc::MsgBuffer req;
   erpc::MsgBuffer resp;
@@ -151,6 +152,7 @@ static void cont_func_prp(void *context, void *t) {
     ctx->rpc->free_msg_buffer(tag->resp);
   */
   auto *response = tag->resp.buf;
+  //TODO: validate (TNIC)
   if ((count % kPrintBatch) == 0) {
     fmt::print("[{}] ack-ed {} prp_reqs\n", __func__, count);
   }
@@ -161,6 +163,7 @@ static void cont_func_prp(void *context, void *t) {
              sender_id);
 #endif
 
+  // TODO: store prev followers hashes and validate and apply req
   ctx->metadata->update_prp_acks(cmt, sender_id);
   delete tag;
   count++;
@@ -192,6 +195,7 @@ void send_cmt(int cmt_idx, const std::vector<int> &dest_ids, app_context *ctx) {
 void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
   // construct message
   auto msg_buf = std::make_unique<p_msg>();
+  // TODO: construct message for Followers for validation
   if (p_get_msg_buf_sz() != sizeof(p_msg)) {
     fmt::print(
         "[{}] buf sizes missmatch (check alignment and padding!) {} vs {}\n",
@@ -208,6 +212,7 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
 
       ::memcpy(buffs->req.buf, ctx->batcher->serialize_batch(),
                kMsgSize * msg_manager::batch_count);
+  	// TODO: sign it
       // enqueue_req
       ctx->rpc->enqueue_request(ctx->connections[dest_id], kReqPropose,
                                 &buffs->req, &buffs->resp, cont_func_prp,
@@ -351,27 +356,19 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   // deserialize the message-req
   uint8_t *recv_data =
       reinterpret_cast<uint8_t *>(req_handle->get_req_msgbuf()->buf);
-  /*
-  auto batched_msg = msg_manager::deserialize(
-      recv_data, req_handle->get_req_msgbuf()->get_data_size());
 
-  std::vector<int> idxs = msg_manager::parse_indexes(
-      std::move(batched_msg), req_handle->get_req_msgbuf()->get_data_size());
-  if (count % kPrintBatch == 0) {
-    // print batched
-    fmt::print("{} count={}\n", __func__, count);
-  }
-  */
+  // TODO: validate (TNIC)
+  // TODO: validate here for BFT
 
   if (count == FLAGS_reqs_num / msg_manager::batch_count - 1)
     fmt::print("{} final count={}\n", __func__, count);
   count++;
 
-  /* enqueue ack */
-
+  /* enqueue ack-response */
   app_context *ctx = reinterpret_cast<app_context *>(context);
   ack_msg ack;
   ack.sender = ctx->node_id;
+
   auto &resp = req_handle->pre_resp_msgbuf;
   if (ctx == nullptr) {
     fmt::print("{} ctx==nullptr \n", __func__);
@@ -383,6 +380,7 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
     using namespace std::chrono_literals;
     std::this_thread::sleep_for(10000ms);
   }
+  // TODO: sign message before trasmition
   ctx->rpc->resize_msg_buffer(&resp, f_get_msg_buf_sz());
   memcpy_ack_into_buffer(ack, resp.buf);
   ctx->rpc->enqueue_response(req_handle, &resp);
