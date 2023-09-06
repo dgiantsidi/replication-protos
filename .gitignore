@@ -12,3 +12,4 @@ digital_signatures/*.out
 **/**/client
 **/**/server
 **/build
+**/*.txt
