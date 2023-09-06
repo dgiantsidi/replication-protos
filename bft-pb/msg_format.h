@@ -1,3 +1,4 @@
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <stdio.h>
@@ -58,7 +59,7 @@ uint32_t f_get_cmt(uint8_t *buf) {
 
 uint8_t *f_get_ack(uint8_t *buf) { return (buf); }
 
-static int p_get_msg_buf_sz() { return (sizeof(p_msg) + sizeof(p_metadata)); }
+static int p_get_msg_buf_sz() { return sizeof(p_msg); }
 
 uint8_t *p_get_cmd(uint8_t *buf) { return buf; }
 

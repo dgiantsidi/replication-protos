@@ -36,15 +36,16 @@ struct cmt_msg {
 struct msg_manager {
   static constexpr size_t batch_count = 16;
   msg_manager() {
-    buffer = std::make_unique<uint8_t[]>(batch_count * sizeof(msg));
-    fmt::print("sizeof(msg)={}\n", sizeof(msg));
+    buffer = std::make_unique<uint8_t[]>(batch_count * kMsgSize);
+    fmt::print("sizeof(msg)={}\n", kMsgSize);
   };
 
   bool enqueue_req(uint8_t *buf, size_t buf_sz) {
-    if (buf_sz != sizeof(msg))
-      fmt::print("[{}] buf_sz != sizeof(msg)\n", __PRETTY_FUNCTION__);
+    if (buf_sz != kMsgSize)
+      fmt::print("[{}] buf_sz ({}) != sizeof(msg) ({})\n", __PRETTY_FUNCTION__,
+                 buf_sz, kMsgSize);
     if (cur_idx < batch_count) {
-      ::memcpy(buffer.get() + cur_idx * sizeof(msg), buf, buf_sz);
+      ::memcpy(buffer.get() + cur_idx * kMsgSize, buf, buf_sz);
       cur_idx++;
       return true;
     } else
@@ -59,9 +60,9 @@ struct msg_manager {
   }
 
   static std::unique_ptr<uint8_t[]> deserialize(uint8_t *buf, size_t buf_sz) {
-    if (buf_sz != sizeof(msg) * batch_count) {
+    if (buf_sz != kMsgSize * batch_count) {
       fmt::print("[{}] buf_sz ({}B) != batch_count*sizeof(msg) ({}B)\n",
-                 __PRETTY_FUNCTION__, buf_sz, (sizeof(msg) * batch_count));
+                 __PRETTY_FUNCTION__, buf_sz, (kMsgSize * batch_count));
       using namespace std::chrono_literals;
       std::this_thread::sleep_for(10000ms);
     }
@@ -71,6 +72,8 @@ struct msg_manager {
   }
 
   static void print_batched(std::unique_ptr<uint8_t[]> msgs, size_t sz) {
+    fmt::print("[{}] should not enter here\n", __func__);
+    exit(128);
     int min_idx = -1, max_idx = -1;
     for (auto i = 0ULL; i < batch_count; i++) {
       auto msg_data = std::make_unique<msg>();
@@ -87,6 +90,8 @@ struct msg_manager {
 
   static std::vector<int> parse_indexes(std::unique_ptr<uint8_t[]> msgs,
                                         size_t sz) {
+    fmt::print("[{}] should not enter here\n", __func__);
+    exit(128);
     int min_idx = -1, max_idx = -1, prev_idx = -1;
     size_t msgs_num =
         (sz < batch_count * sizeof(msg)) ? (sz / sizeof(msg)) : batch_count;

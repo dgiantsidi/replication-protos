@@ -193,8 +193,9 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
   // construct message
   auto msg_buf = std::make_unique<p_msg>();
   if (p_get_msg_buf_sz() != sizeof(p_msg)) {
-    fmt::print("[{}] buf sizes missmatch (check alignment and padding!)\n",
-               __PRETTY_FUNCTION__);
+    fmt::print(
+        "[{}] buf sizes missmatch (check alignment and padding!) {} vs {}\n",
+        __PRETTY_FUNCTION__, p_get_msg_buf_sz(), sizeof(p_msg));
     exit(128);
   }
   if (!ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
