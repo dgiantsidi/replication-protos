@@ -75,7 +75,6 @@ public:
 
     using req_id = int;
     using nb_acks = int;
-    std::unordered_map<req_id, nb_acks> prp_acks;
 
     bool update_f_hashes(int idx, int src_node, uint8_t *hash_ptr) {
       if (src_node == 1) {
@@ -124,7 +123,12 @@ static void cont_func_prp(void *context, void *t) {
     ctx->rpc->free_msg_buffer(tag->resp);
   */
   auto *response = tag->resp.buf;
+  auto buf_sz = tag->resp.get_data_size();
   // TODO: validate (TNIC)
+  auto [calc_mac, len] = hmac_sha256(response, (buf_sz - _hmac_size));
+  if (::memcmp(response + (buf_sz - _hmac_size), calc_mac.data(), len) != 0) {
+    fmt::print("[{}] error on HMAC validation\n", __PRETTY_FUNCTION__);
+  }
   if ((count % kPrintBatch) == 0) {
     fmt::print("[{}] ack-ed {} prp_reqs\n", __func__, count);
   }
