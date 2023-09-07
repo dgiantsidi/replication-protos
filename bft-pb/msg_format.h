@@ -50,6 +50,12 @@ uint32_t f_get_sender(uint8_t *buf) {
   return sender;
 }
 
+bool f_get_ack_val(uint8_t *buf) {
+  bool response = false;
+  ::memcpy(&response, buf, ack_msg::AckSize);
+  return response;
+}
+
 uint32_t f_get_cmt(uint8_t *buf) {
   int cmt = 0;
   auto *ptr = buf + ack_msg::AckSize + ack_msg::OutSize;

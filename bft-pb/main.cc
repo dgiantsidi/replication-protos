@@ -62,7 +62,7 @@ public:
   struct protocol_metadata {
     int leader = pb::follower;
     bool is_leader() { return leader == pb::leader; }
-
+    uint32_t cmt_idx = 0;
     std::vector<int> followers;
     uint8_t mock_h1[p_metadata::HashSize] = {0x0};
     uint8_t mock_h2[p_metadata::HashSize] = {0x0};
@@ -76,14 +76,11 @@ public:
     using nb_acks = int;
     std::unordered_map<req_id, nb_acks> prp_acks;
 
-    bool update_prp_acks(int idx, int src_node) {
-      if (prp_acks.find(idx) == prp_acks.end()) {
-        prp_acks.insert({idx, 1});
-        return false;
-      } else {
-        prp_acks.erase(idx);
-        return true;
+    bool update_f_hashes(int idx, int src_node /*TODO*, hash*/) {
+      if (src_node == 1) {
       }
+      /* TODO ::memcpy(f_hash, input_hash */
+      return true;
     }
   };
 
@@ -128,13 +125,17 @@ static void cont_func_prp(void *context, void *t) {
   }
   int cmt = f_get_cmt(response);
   int sender_id = f_get_sender(response);
+  bool ack = f_get_ack_val(response);
+  if (ack == false) {
+    fmt::print("[{}] wrong!\n", __PRETTY_FUNCTION__);
+  }
 #ifdef PRINT_DEBUG
   fmt::print("[{}] ack-ed prp-req for idx={} (from node={})\n", __func__, cnt,
              sender_id);
 #endif
 
   // TODO: store prev followers hashes and validate and apply req
-  ctx->metadata->update_prp_acks(cmt, sender_id);
+  ctx->metadata->update_f_hashes(cmt, sender_id);
   delete tag;
   count++;
 }
@@ -145,8 +146,8 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
 
   // fill in the message buf with data
   ::memcpy(msg_buf->cmd, kDefaultCmd, p_msg::CmdSize);
-  ::memcpy(msg_buf->output, &idx, sizeof(int));
-  ::memcpy(&(msg_buf->meta.cnt), &idx, sizeof(int));
+  ::memcpy(msg_buf->output, &idx, sizeof(uint32_t));
+  ::memcpy(&(msg_buf->meta.cnt), &idx, sizeof(uint32_t));
   ::memcpy(msg_buf->meta.f1_prev, ctx->get_f1_hash(), p_metadata::HashSize);
   ::memcpy(msg_buf->meta.f2_prev, ctx->get_f2_hash(), p_metadata::HashSize);
 
@@ -303,25 +304,29 @@ void ctrl_c_handler(int) {
   exit(1);
 }
 
-void followers_validation(std::unique_ptr<p_msg> recv_msg, app_context *ctx) {
+bool followers_validation(std::unique_ptr<p_msg> recv_msg, app_context *ctx,
+                          bool last_req) {
   static uint32_t leader_exp_cnt = 0;
   // validate protocol
   if (recv_msg->meta.cnt != leader_exp_cnt) {
     std::cout << "cnt=" << recv_msg->meta.cnt
-              << " while leader's expected cnt is=" << leader_exp_cnt << "\n";
+              << " while leader's expected cnt is=" << leader_exp_cnt
+              << " whereas my cmt_idx=" << ctx->metadata->cmt_idx << "\n";
     exit(128);
   }
 
   // validate leader's output
   uint32_t output = 0;
-  ::memcpy(&output, recv_msg->output, sizeof(int));
+  ::memcpy(&output, recv_msg->output, sizeof(uint32_t));
   if (output != leader_exp_cnt) {
-    std::cout << "cnt=" << output
-              << " while leader's expected cnt is=" << leader_exp_cnt << "\n";
+    std::cout << "> cnt=" << output
+              << " while leader's expected cnt is=" << leader_exp_cnt
+              << " whereas my cmt_idx=" << ctx->metadata->cmt_idx << "\n";
     exit(128);
   }
 #if 1
-  // validate previous round/state
+  // validate previous round/state (no need to do that for leader as we check
+  // the output)
   if (::memcmp(recv_msg->meta.f1_prev, ctx->metadata->my_last_state,
                p_metadata::HashSize) != 0) {
     fmt::print("[{}] f1_prev differs from my_last_state\n",
@@ -330,20 +335,25 @@ void followers_validation(std::unique_ptr<p_msg> recv_msg, app_context *ctx) {
   }
   auto &f_node_state = (ctx->node_id == 1) ? ctx->metadata->f2_last_state
                                            : ctx->metadata->f1_last_state;
+  // I only need to check if the previous node state equals mine
   if (::memcmp(recv_msg->meta.f2_prev, f_node_state, p_metadata::HashSize) !=
       0) {
     fmt::print("[{}] other's follower state differs from its expected state\n",
                __PRETTY_FUNCTION__);
     exit(128);
   }
+  /*
   if (::memcmp(recv_msg->meta.prev_h, ctx->metadata->leader_last_state,
                p_metadata::HashSize) != 0) {
     fmt::print("[{}] leader_prev differs from leader_last_state\n",
                __PRETTY_FUNCTION__);
     exit(128);
   }
+  */
 #endif
   leader_exp_cnt++;
+  ctx->metadata->cmt_idx++;
+  return true;
 }
 
 void req_handler_prp(erpc::ReqHandle *req_handle,
@@ -364,9 +374,13 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   }
 
   // decode the (batched) msg and validate actions
+  bool ok = true;
   for (auto i = 0; i < batch_sz; i++) {
     auto recv_msg = memcpy_into_p_msg(recv_data);
-    followers_validation(std::move(recv_msg), ctx);
+    ok = followers_validation(std::move(recv_msg), ctx, (i == (batch_sz - 1)));
+    if (!ok) {
+      fmt::print("[{}] validation failed\n", __PRETTY_FUNCTION__);
+    }
     recv_data += kMsgSize;
   }
 
@@ -377,6 +391,9 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   /* enqueue ack-response */
   ack_msg ack;
   ack.sender = ctx->node_id;
+  ack.cmt = ctx->metadata->cmt_idx;
+  ::memcpy(&ack.output, &(ack.cmt), sizeof(uint32_t));
+  ::memcpy(&ack.ack, &(ok), sizeof(bool));
 
   auto &resp = req_handle->pre_resp_msgbuf;
   if (ctx == nullptr) {
