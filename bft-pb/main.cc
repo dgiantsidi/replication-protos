@@ -1,4 +1,5 @@
 #include "common.h"
+#include "crypto/hmac_lib.h"
 #include "msg.h"
 #include "util/numautils.h"
 #include <chrono>
@@ -76,13 +77,13 @@ public:
     using nb_acks = int;
     std::unordered_map<req_id, nb_acks> prp_acks;
 
-    bool update_f_hashes(int idx, int src_node, uint8_t* hash_ptr) {
+    bool update_f_hashes(int idx, int src_node, uint8_t *hash_ptr) {
       if (src_node == 1) {
-	      ::memcpy(mock_h1, hash_ptr, ack_msg::HashSize);
-	      return true;
+        ::memcpy(mock_h1, hash_ptr, ack_msg::HashSize);
+        return true;
       }
       if (src_node == 2) {
-	      ::memcpy(mock_h2, hash_ptr, ack_msg::HashSize);
+        ::memcpy(mock_h2, hash_ptr, ack_msg::HashSize);
       }
       return true;
     }
@@ -138,9 +139,10 @@ static void cont_func_prp(void *context, void *t) {
              sender_id);
 #endif
 
-  // @dimitra: state is a pointer to the memory area, if 'ack' goes out of scope we
-  // will seg-fault here
-  uint8_t* state = f_get_state(response);
+  // @dimitra: state is a pointer to the memory area, if 'ack' goes out of scope
+  // we will seg-fault here
+  uint8_t *state = f_get_state(response);
+
   // TODO: store prev followers hashes and validate and apply req
   ctx->metadata->update_f_hashes(cmt, sender_id, state);
   delete tag;
@@ -169,12 +171,22 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
     for (auto &dest_id : dest_ids) {
       // needs to send
       rpc_buffs *buffs = new rpc_buffs(ctx->rpc);
-      buffs->alloc_req_buf(kMsgSize * msg_manager::batch_count, ctx->rpc);
-      buffs->alloc_resp_buf(kAckSize, ctx->rpc);
+      buffs->alloc_req_buf(kMsgSize * msg_manager::batch_count + _hmac_size,
+                           ctx->rpc);
+      buffs->alloc_resp_buf(kAckSize + _hmac_size, ctx->rpc);
 
       ::memcpy(buffs->req.buf, ctx->batcher->serialize_batch(),
                kMsgSize * msg_manager::batch_count);
-      // TODO: sign before transmission
+
+      // sign before transmission
+      auto [mac, len] =
+          hmac_sha256(buffs->req.buf, kMsgSize * msg_manager::batch_count);
+      if (len != _hmac_size) {
+        fmt::print("[{}] len ({}) != _hmac_size ({})\n", __PRETTY_FUNCTION__,
+                   len, _hmac_size);
+      }
+      ::memcpy(buffs->req.buf + kMsgSize * msg_manager::batch_count, mac.data(),
+               len);
       // enqueue_req
       ctx->rpc->enqueue_request(ctx->connections[dest_id], kReqPropose,
                                 &buffs->req, &buffs->resp, cont_func_prp,
@@ -373,11 +385,15 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
 
   size_t buf_sz = req_handle->get_req_msgbuf()->get_data_size();
 
-  // TODO: validate (TNIC)
-  auto batch_sz = buf_sz / kMsgSize;
-  if (buf_sz % kMsgSize != 0) {
+  auto batch_sz = (buf_sz - _hmac_size) / kMsgSize;
+  if ((buf_sz - _hmac_size) % kMsgSize != 0) {
     fmt::print("[{}] something seems wrong with buf_sz {} (kMsgSize {})\n",
                __PRETTY_FUNCTION__, buf_sz, kMsgSize);
+  }
+  // validate before execution (TNIC)
+  auto [calc_mac, len] = hmac_sha256(recv_data, (buf_sz - _hmac_size));
+  if (::memcmp(recv_data + (buf_sz - _hmac_size), calc_mac.data(), len) != 0) {
+    fmt::print("[{}] error on HMAC validation\n", __PRETTY_FUNCTION__);
   }
 
   // decode the (batched) msg and validate actions
@@ -414,9 +430,16 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
     using namespace std::chrono_literals;
     std::this_thread::sleep_for(10000ms);
   }
-  // TODO: sign message before transmission
-  ctx->rpc->resize_msg_buffer(&resp, f_get_msg_buf_sz());
+
+  // sign message before transmission
+  ctx->rpc->resize_msg_buffer(&resp, f_get_msg_buf_sz() + _hmac_size);
   memcpy_ack_into_buffer(ack, resp.buf);
+  auto [mac, hlen] = hmac_sha256(resp.buf, f_get_msg_buf_sz());
+  if (hlen != _hmac_size) {
+    fmt::print("[{}] len ({}) != _hmac_size ({})\n", __PRETTY_FUNCTION__, hlen,
+               _hmac_size);
+  }
+  ::memcpy(resp.buf + f_get_msg_buf_sz(), mac.data(), hlen);
   ctx->rpc->enqueue_response(req_handle, &resp);
 }
 
