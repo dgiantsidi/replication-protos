@@ -9,11 +9,10 @@
 #include <thread>
 
 static constexpr int kReqPropose = 1;
-#if 0
-static constexpr int kReqCommit = 2;
-#endif
 static constexpr int kPrintBatch = 50000;
-static constexpr int numa_node = 0;
+static constexpr int numa_node =
+    0; /*@dimitra: currently only 0-numa is supported */
+static constexpr uint8_t kDefaultCmd[p_msg::CmdSize] = {0x0};
 
 DEFINE_uint64(num_server_threads, 1, "Number of threads at the server machine");
 DEFINE_uint64(num_client_threads, 1, "Number of threads per client machine");
@@ -25,9 +24,6 @@ using rpc_handle = erpc::Rpc<erpc::CTransport>;
 enum pb { leader = 0, follower = 1 };
 
 class app_context;
-#if 0
-void send_cmt(int cmt_idx, const std::vector<int> &dest_ids, app_context *ctx);
-#endif
 
 struct rpc_buffs {
   erpc::MsgBuffer req;
@@ -66,13 +62,19 @@ public:
   struct protocol_metadata {
     int leader = pb::follower;
     bool is_leader() { return leader == pb::leader; }
-    int cmt_idx = 0, prp_idx = 0;
+
     std::vector<int> followers;
+    uint8_t mock_h1[p_metadata::HashSize] = {0x0};
+    uint8_t mock_h2[p_metadata::HashSize] = {0x0};
+
+    uint8_t my_last_state[p_metadata::HashSize] = {0x0};
+    uint8_t f1_last_state[p_metadata::HashSize] = {0x0};
+    uint8_t f2_last_state[p_metadata::HashSize] = {0x0};
+    uint8_t leader_last_state[p_metadata::HashSize] = {0x0};
 
     using req_id = int;
     using nb_acks = int;
     std::unordered_map<req_id, nb_acks> prp_acks;
-    std::unordered_map<req_id, nb_acks> cmt_acks;
 
     bool update_prp_acks(int idx, int src_node) {
       if (prp_acks.find(idx) == prp_acks.end()) {
@@ -83,16 +85,11 @@ public:
         return true;
       }
     }
-    bool update_cmt_acks(int idx, int src_node) {
-      if (cmt_acks.find(idx) == cmt_acks.end()) {
-        cmt_acks.insert({idx, 1});
-        return false;
-      } else {
-        prp_acks.erase(idx);
-        return true;
-      }
-    }
   };
+
+  uint8_t *get_f1_hash() { return metadata->mock_h1; }
+
+  uint8_t *get_f2_hash() { return metadata->mock_h2; }
 
   rpc_handle *rpc = nullptr;
   int node_id = 0, thread_id = 0;
@@ -111,33 +108,6 @@ public:
   }
 };
 
-#if 0
-static void cont_func_cmt(void *context, void *t) {
-  static uint64_t count = 0;
-  auto *ctx = static_cast<app_context *>(context);
-  if (ctx == nullptr) {
-    fmt::print("{} ctx==nullptr \n", __func__);
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for(10000ms);
-  }
-  auto *tag = static_cast<rpc_buffs *>(t);
-  auto *response = reinterpret_cast<cmt_msg *>(tag->resp.buf);
-  int e_idx = response->e_idx;
-  int sender = response->hdr.src_node;
-
-  /*
-  ctx->rpc->free_msg_buffer(tag->req);
-  ctx->rpc->free_msg_buffer(tag->resp);
-*/
-  ctx->metadata->update_cmt_acks(e_idx, sender);
-  delete tag;
-  if ((count % PRINT_BATCH) == 0) {
-    fmt::print("[{}] ack-ed {} prp_reqs\n", __func__, count);
-  }
-  count++;
-}
-#endif
-
 static void cont_func_prp(void *context, void *t) {
   static uint64_t count = 0;
   auto *ctx = static_cast<app_context *>(context);
@@ -152,7 +122,7 @@ static void cont_func_prp(void *context, void *t) {
     ctx->rpc->free_msg_buffer(tag->resp);
   */
   auto *response = tag->resp.buf;
-  //TODO: validate (TNIC)
+  // TODO: validate (TNIC)
   if ((count % kPrintBatch) == 0) {
     fmt::print("[{}] ack-ed {} prp_reqs\n", __func__, count);
   }
@@ -169,33 +139,17 @@ static void cont_func_prp(void *context, void *t) {
   count++;
 }
 
-#if 0
-void send_cmt(int cmt_idx, const std::vector<int> &dest_ids, app_context *ctx) {
-  // construct message
-  auto msg_buf = std::make_unique<msg>();
-  msg_buf->hdr.src_node = ctx->node_id;
-  msg_buf->hdr.dest_node = -1; /* broadcast */
-  msg_buf->hdr.seq_idx = cmt_idx;
-  msg_buf->hdr.msg_size = kMsgSize;
-  for (auto &dest_id : dest_ids) {
-    // needs to send
-    rpc_buffs *buffs = new rpc_buffs(ctx->rpc);
-    buffs->alloc_req_buf(sizeof(msg), ctx->rpc);
-    buffs->alloc_resp_buf(kMsgSize, ctx->rpc);
-
-    ::memcpy(buffs->req.buf, msg_buf.get(), sizeof(msg));
-    // enqueue_req
-    ctx->rpc->enqueue_request(ctx->connections[dest_id], kReqCommit,
-                              &buffs->req, &buffs->resp, cont_func_cmt,
-                              reinterpret_cast<void *>(buffs));
-  }
-}
-#endif
-
 void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
   // construct message
   auto msg_buf = std::make_unique<p_msg>();
-  // TODO: construct message for Followers for validation
+
+  // fill in the message buf with data
+  ::memcpy(msg_buf->cmd, kDefaultCmd, p_msg::CmdSize);
+  ::memcpy(msg_buf->output, &idx, sizeof(int));
+  ::memcpy(&(msg_buf->meta.cnt), &idx, sizeof(int));
+  ::memcpy(msg_buf->meta.f1_prev, ctx->get_f1_hash(), p_metadata::HashSize);
+  ::memcpy(msg_buf->meta.f2_prev, ctx->get_f2_hash(), p_metadata::HashSize);
+
   if (p_get_msg_buf_sz() != sizeof(p_msg)) {
     fmt::print(
         "[{}] buf sizes missmatch (check alignment and padding!) {} vs {}\n",
@@ -212,7 +166,7 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
 
       ::memcpy(buffs->req.buf, ctx->batcher->serialize_batch(),
                kMsgSize * msg_manager::batch_count);
-  	// TODO: sign it
+      // TODO: sign before transmission
       // enqueue_req
       ctx->rpc->enqueue_request(ctx->connections[dest_id], kReqPropose,
                                 &buffs->req, &buffs->resp, cont_func_prp,
@@ -349,23 +303,78 @@ void ctrl_c_handler(int) {
   exit(1);
 }
 
+void followers_validation(std::unique_ptr<p_msg> recv_msg, app_context *ctx) {
+  static uint32_t leader_exp_cnt = 0;
+  // validate protocol
+  if (recv_msg->meta.cnt != leader_exp_cnt) {
+    std::cout << "cnt=" << recv_msg->meta.cnt
+              << " while leader's expected cnt is=" << leader_exp_cnt << "\n";
+    exit(128);
+  }
+
+  // validate leader's output
+  uint32_t output = 0;
+  ::memcpy(&output, recv_msg->output, sizeof(int));
+  if (output != leader_exp_cnt) {
+    std::cout << "cnt=" << output
+              << " while leader's expected cnt is=" << leader_exp_cnt << "\n";
+    exit(128);
+  }
+#if 1
+  // validate previous round/state
+  if (::memcmp(recv_msg->meta.f1_prev, ctx->metadata->my_last_state,
+               p_metadata::HashSize) != 0) {
+    fmt::print("[{}] f1_prev differs from my_last_state\n",
+               __PRETTY_FUNCTION__);
+    exit(128);
+  }
+  auto &f_node_state = (ctx->node_id == 1) ? ctx->metadata->f2_last_state
+                                           : ctx->metadata->f1_last_state;
+  if (::memcmp(recv_msg->meta.f2_prev, f_node_state, p_metadata::HashSize) !=
+      0) {
+    fmt::print("[{}] other's follower state differs from its expected state\n",
+               __PRETTY_FUNCTION__);
+    exit(128);
+  }
+  if (::memcmp(recv_msg->meta.prev_h, ctx->metadata->leader_last_state,
+               p_metadata::HashSize) != 0) {
+    fmt::print("[{}] leader_prev differs from leader_last_state\n",
+               __PRETTY_FUNCTION__);
+    exit(128);
+  }
+#endif
+  leader_exp_cnt++;
+}
+
 void req_handler_prp(erpc::ReqHandle *req_handle,
                      void *context /* app_context */) {
   static uint64_t count = 0;
+  app_context *ctx = reinterpret_cast<app_context *>(context);
 
-  // deserialize the message-req
   uint8_t *recv_data =
       reinterpret_cast<uint8_t *>(req_handle->get_req_msgbuf()->buf);
 
+  size_t buf_sz = req_handle->get_req_msgbuf()->get_data_size();
+
   // TODO: validate (TNIC)
-  // TODO: validate here for BFT
+  auto batch_sz = buf_sz / kMsgSize;
+  if (buf_sz % kMsgSize != 0) {
+    fmt::print("[{}] something seems wrong with buf_sz {} (kMsgSize {})\n",
+               __PRETTY_FUNCTION__, buf_sz, kMsgSize);
+  }
+
+  // decode the (batched) msg and validate actions
+  for (auto i = 0; i < batch_sz; i++) {
+    auto recv_msg = memcpy_into_p_msg(recv_data);
+    followers_validation(std::move(recv_msg), ctx);
+    recv_data += kMsgSize;
+  }
 
   if (count == FLAGS_reqs_num / msg_manager::batch_count - 1)
     fmt::print("{} final count={}\n", __func__, count);
   count++;
 
   /* enqueue ack-response */
-  app_context *ctx = reinterpret_cast<app_context *>(context);
   ack_msg ack;
   ack.sender = ctx->node_id;
 
@@ -380,53 +389,11 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
     using namespace std::chrono_literals;
     std::this_thread::sleep_for(10000ms);
   }
-  // TODO: sign message before trasmition
+  // TODO: sign message before transmission
   ctx->rpc->resize_msg_buffer(&resp, f_get_msg_buf_sz());
   memcpy_ack_into_buffer(ack, resp.buf);
   ctx->rpc->enqueue_response(req_handle, &resp);
 }
-
-#if 0
-void req_handler_cmt(erpc::ReqHandle *req_handle,
-                     void *context /* app_context */) {
-  static uint64_t count = 0;
-#ifdef PRINT_DEBUG
-  fmt::print("{} count={}\n", __func__, count);
-#endif
-
-  // deserialize the message-req
-  uint8_t *recv_data =
-      reinterpret_cast<uint8_t *>(req_handle->get_req_msgbuf()->buf);
-  auto *msg_data = reinterpret_cast<msg *>(recv_data);
-  if (count % PRINT_BATCH == 0) {
-    // print batched
-    fmt::print("{} count={}\n", __func__, count);
-  }
-
-  count++;
-
-  /* enqueue ack */
-
-  app_context *ctx = reinterpret_cast<app_context *>(context);
-  auto ack = std::make_unique<cmt_msg>();
-  ack->e_idx = msg_data->hdr.seq_idx;
-  ack->hdr.src_node = ctx->node_id;
-  auto &resp = req_handle->pre_resp_msgbuf;
-  if (ctx == nullptr) {
-    fmt::print("{} ctx==nullptr \n", __func__);
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for(10000ms);
-  }
-  if (ctx->rpc == nullptr) {
-    fmt::print("ctx->rpc==nullptr\n", __func__);
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for(10000ms);
-  }
-  ctx->rpc->resize_msg_buffer(&resp, sizeof(cmt_msg));
-  ::memcpy(resp.buf, ack.get(), sizeof(cmt_msg));
-  ctx->rpc->enqueue_response(req_handle, &resp);
-}
-#endif
 
 int main(int args, char *argv[]) {
   signal(SIGINT, ctrl_c_handler);
@@ -453,9 +420,6 @@ int main(int args, char *argv[]) {
 
   erpc::Nexus nexus(server_uri, 0, 0);
   nexus.register_req_func(kReqPropose, req_handler_prp);
-#if 0
-  nexus.register_req_func(kReqCommit, req_handler_cmt);
-#endif
 
   std::vector<std::thread> threads;
   for (size_t i = 0; i < num_threads; i++) {
