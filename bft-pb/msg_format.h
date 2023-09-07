@@ -32,16 +32,20 @@ struct ack_msg {
    */
   static constexpr size_t AckSize = sizeof(bool);
   static constexpr size_t OutSize = 16;
+  static constexpr size_t HashSize = 32; /* we use SHA256() */
 
   uint8_t ack[AckSize];
   uint8_t output[OutSize];
   uint32_t cmt;
   uint32_t sender;
+  uint8_t state[HashSize];
 };
 
 static int f_get_msg_buf_sz() { return sizeof(ack_msg); }
 
+
 uint8_t *f_get_output(uint8_t *buf) { return (buf + ack_msg::AckSize); }
+uint8_t* f_get_state(uint8_t* buf) {return (f_get_output(buf) + sizeof(ack_msg::cmt) + sizeof(ack_msg::sender)); }
 
 uint32_t f_get_sender(uint8_t *buf) {
   int sender = -1;

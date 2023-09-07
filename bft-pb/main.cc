@@ -76,10 +76,14 @@ public:
     using nb_acks = int;
     std::unordered_map<req_id, nb_acks> prp_acks;
 
-    bool update_f_hashes(int idx, int src_node /*TODO*, hash*/) {
+    bool update_f_hashes(int idx, int src_node, uint8_t* hash_ptr) {
       if (src_node == 1) {
+	      ::memcpy(mock_h1, hash_ptr, ack_msg::HashSize);
+	      return true;
       }
-      /* TODO ::memcpy(f_hash, input_hash */
+      if (src_node == 2) {
+	      ::memcpy(mock_h2, hash_ptr, ack_msg::HashSize);
+      }
       return true;
     }
   };
@@ -134,8 +138,11 @@ static void cont_func_prp(void *context, void *t) {
              sender_id);
 #endif
 
+  // @dimitra: state is a pointer to the memory area, if 'ack' goes out of scope we
+  // will seg-fault here
+  uint8_t* state = f_get_state(response);
   // TODO: store prev followers hashes and validate and apply req
-  ctx->metadata->update_f_hashes(cmt, sender_id);
+  ctx->metadata->update_f_hashes(cmt, sender_id, state);
   delete tag;
   count++;
 }
@@ -394,6 +401,7 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   ack.cmt = ctx->metadata->cmt_idx;
   ::memcpy(&ack.output, &(ack.cmt), sizeof(uint32_t));
   ::memcpy(&ack.ack, &(ok), sizeof(bool));
+  ::memset(ack.state, '0x0', ack_msg::HashSize);
 
   auto &resp = req_handle->pre_resp_msgbuf;
   if (ctx == nullptr) {
