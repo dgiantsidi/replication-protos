@@ -124,7 +124,7 @@ static void cont_func_prp(void *context, void *t) {
   */
   auto *response = tag->resp.buf;
   auto buf_sz = tag->resp.get_data_size();
-  // TODO: validate (TNIC)
+  // validate (TNIC)
   auto [calc_mac, len] = hmac_sha256(response, (buf_sz - _hmac_size));
   if (::memcmp(response + (buf_sz - _hmac_size), calc_mac.data(), len) != 0) {
     fmt::print("[{}] error on HMAC validation\n", __PRETTY_FUNCTION__);
@@ -421,7 +421,14 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   ack.cmt = ctx->metadata->cmt_idx;
   ::memcpy(&ack.output, &(ack.cmt), sizeof(uint32_t));
   ::memcpy(&ack.ack, &(ok), sizeof(bool));
-  ::memset(ack.state, '0x0', ack_msg::HashSize);
+  // HMAC-state here
+  auto [state_mac, sz] = hmac_sha256(ack.state, ack_msg::HashSize);
+  ::memcpy(ack.state, state_mac.data(), ack_msg::HashSize);
+  if (ack.sender == 1) {
+    ::memcpy(ctx->metadata->f1_last_state, state_mac.data(), ack_msg::HashSize);
+  } else {
+    ::memcpy(ctx->metadata->f2_last_state, state_mac.data(), ack_msg::HashSize);
+  }
 
   auto &resp = req_handle->pre_resp_msgbuf;
   if (ctx == nullptr) {

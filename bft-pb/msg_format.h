@@ -43,9 +43,10 @@ struct ack_msg {
 
 static int f_get_msg_buf_sz() { return sizeof(ack_msg); }
 
-
 uint8_t *f_get_output(uint8_t *buf) { return (buf + ack_msg::AckSize); }
-uint8_t* f_get_state(uint8_t* buf) {return (f_get_output(buf) + sizeof(ack_msg::cmt) + sizeof(ack_msg::sender)); }
+uint8_t *f_get_state(uint8_t *buf) {
+  return (f_get_output(buf) + sizeof(ack_msg::cmt) + sizeof(ack_msg::sender));
+}
 
 uint32_t f_get_sender(uint8_t *buf) {
   int sender = -1;
