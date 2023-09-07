@@ -12,4 +12,4 @@ digital_signatures/*.out
 **/**/client
 **/**/server
 **/build
-**/*.txt
+**/sgx_with_persistency_log.txt
