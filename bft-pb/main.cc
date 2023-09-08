@@ -118,10 +118,7 @@ static void cont_func_prp(void *context, void *t) {
     std::this_thread::sleep_for(10000ms);
   }
   auto *tag = static_cast<rpc_buffs *>(t);
-  /*
-    ctx->rpc->free_msg_buffer(tag->req);
-    ctx->rpc->free_msg_buffer(tag->resp);
-  */
+
   auto *response = tag->resp.buf;
   auto buf_sz = tag->resp.get_data_size();
   // validate (TNIC)
@@ -138,10 +135,6 @@ static void cont_func_prp(void *context, void *t) {
   if (ack == false) {
     fmt::print("[{}] wrong!\n", __PRETTY_FUNCTION__);
   }
-#ifdef PRINT_DEBUG
-  fmt::print("[{}] ack-ed prp-req for idx={} (from node={})\n", __func__, cnt,
-             sender_id);
-#endif
 
   // @dimitra: state is a pointer to the memory area, if 'ack' goes out of scope
   // we will seg-fault here
@@ -304,9 +297,6 @@ void proto_func(size_t thread_id, erpc::Nexus *nexus) {
   ctx->rpc = new rpc_handle(nexus, static_cast<void *>(ctx), ctx->instance_id,
                             sm_handler, 0);
 
-  /* give some time before we start */
-  // using namespace std::chrono_literals;
-  // std::this_thread::sleep_for(5000ms);
   /* we can start */
 
   if (FLAGS_process_id == pb::leader) {
