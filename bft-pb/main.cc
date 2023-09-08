@@ -200,11 +200,11 @@ void flash_batcher(const std::vector<int> &dest_ids, app_context *ctx) {
   // needs to send
   for (auto &dest_id : dest_ids) {
     rpc_buffs *buffs = new rpc_buffs(ctx->rpc);
-    buffs->alloc_req_buf(sizeof(msg) * ctx->batcher->cur_idx, ctx->rpc);
+    buffs->alloc_req_buf(sizeof(p_msg) * ctx->batcher->cur_idx, ctx->rpc);
     buffs->alloc_resp_buf(kMsgSize, ctx->rpc);
 
     ::memcpy(buffs->req.buf, ctx->batcher->serialize_batch(),
-             sizeof(msg) * ctx->batcher->cur_idx);
+             sizeof(p_msg) * ctx->batcher->cur_idx);
     // enqueue_req
     ctx->rpc->enqueue_request(ctx->connections[dest_id], kReqPropose,
                               &buffs->req, &buffs->resp, cont_func_prp,
