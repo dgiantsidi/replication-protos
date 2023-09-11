@@ -1,3 +1,4 @@
+#pragma once
 #include "hmac_lib.h"
 #include <fmt/printf.h>
 
