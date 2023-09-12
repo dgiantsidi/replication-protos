@@ -2,10 +2,11 @@
 #include "hmac_lib.h"
 #include <fmt/printf.h>
 
+template <size_t CTX_SIZE>
 class trusted_log {
 	public:
 		struct log_entry {
-			static constexpr size_t CtxSize = 64;
+			static constexpr size_t CtxSize = CTX_SIZE;
 			static constexpr size_t HashSize = _hmac_size;
 			static constexpr size_t AuthSize = _hmac_size;
 			uint32_t sequencer;
@@ -32,6 +33,7 @@ class trusted_log {
 
 		trusted_log(size_t log_sz) : nb_max_entries(log_sz/sizeof(log_entry)), cur_idx(0), log_size(log_sz), tail(nullptr) {
 			mem_log = std::make_unique<char[]>(nb_max_entries*sizeof(log_entry));
+			tail = mem_log.get();
 			fmt::print("[{}] cur_idx={}, nb_max_entries={}, mem_log={}\n", __PRETTY_FUNCTION__, cur_idx, nb_max_entries, reinterpret_cast<uintptr_t>(mem_log.get()));
 		}
 
@@ -51,7 +53,17 @@ class trusted_log {
 		char* get_entry_at(uint32_t idx) { return get_log_entry_at_idx(idx); }
 
 		uint32_t get_log_size() {return cur_idx;}
-
+		
+		void serialize_tail(char* pre_allocated_buf) {
+			size_t offset = 0;
+			::memcpy(pre_allocated_buf+offset,  tail+offset, sizeof(log_entry::sequencer));
+			offset += sizeof(log_entry::sequencer);
+			::memcpy(pre_allocated_buf + offset, tail+offset, log_entry::CtxSize);
+			offset += log_entry::CtxSize;
+			::memcpy(pre_allocated_buf + offset, tail+offset, log_entry::HashSize);
+			offset += log_entry::HashSize;
+			::memcpy(pre_allocated_buf + offset, tail+offset, log_entry::AuthSize);
+		}
 
 	private:
 		std::unique_ptr<char[]> mem_log;
