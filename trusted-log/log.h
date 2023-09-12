@@ -24,7 +24,6 @@ class trusted_log {
 
 
 		trusted_log(trusted_log&& other) : trusted_log(other.log_size) {
-			fmt::print("[{}]\n", __PRETTY_FUNCTION__);
 			this->mem_log =  std::move(other.mem_log);
 			this->cur_idx = other.cur_idx;
 			this->tail = other.tail;
@@ -32,7 +31,6 @@ class trusted_log {
 		}
 
 		trusted_log(size_t log_sz) : nb_max_entries(log_sz/sizeof(log_entry)), cur_idx(0), log_size(log_sz), tail(nullptr) {
-			fmt::print("[{}]\n", __PRETTY_FUNCTION__);
 			mem_log = std::make_unique<char[]>(nb_max_entries*sizeof(log_entry));
 			fmt::print("[{}] cur_idx={}, nb_max_entries={}, mem_log={}\n", __PRETTY_FUNCTION__, cur_idx, nb_max_entries, reinterpret_cast<uintptr_t>(mem_log.get()));
 		}
