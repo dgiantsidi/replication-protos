@@ -23,9 +23,7 @@ struct msg_manager {
 
   uint8_t *serialize_batch() { return buffer.get(); }
 
-  void empty_buff() {
-    cur_idx = 0;
-  }
+  void empty_buff() { cur_idx = 0; }
 
   static std::unique_ptr<uint8_t[]> deserialize(uint8_t *buf, size_t buf_sz) {
     if (buf_sz != kMsgSize * batch_count) {
@@ -38,7 +36,6 @@ struct msg_manager {
     ::memcpy(data.get(), buf, buf_sz);
     return std::move(data);
   }
-
 
   std::unique_ptr<uint8_t[]> buffer;
   uint32_t cur_idx = 0;

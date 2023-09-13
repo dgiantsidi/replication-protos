@@ -1,10 +1,10 @@
 #include "common.h"
 #include "crypto/hmac_lib.h"
+#include "log.h"
 #include "msg.h"
 #include "util/numautils.h"
 #include <chrono>
 #include <cstring>
-#include "log.h"
 #include <fmt/printf.h>
 #include <gflags/gflags.h>
 #include <signal.h>
@@ -62,16 +62,22 @@ struct rpc_buffs {
 class app_context {
 public:
   struct protocol_metadata {
+    struct audit_protocol {
+      int last_log_seq = 0;
+      int last_state_cmt = 0;
+    };
+    stuct audit_protocol witness_meta;
     int leader = pb::follower;
     bool is_leader() { return leader == pb::leader; }
     uint32_t cmt_idx = 0;
     std::vector<int> followers;
     uint8_t mock_h1[p_metadata::HashSize] = {0x0};
     uint8_t mock_h2[p_metadata::HashSize] = {0x0};
-    static constexpr size_t LogEntry = kMsgSize*msg_manager::batch_count;
+    static constexpr size_t LogEntry = kMsgSize * msg_manager::batch_count;
     std::unique_ptr<trusted_log<LogEntry>> tlog;
     protocol_metadata() {
-	    tlog = std::make_unique<trusted_log<LogEntry>>(LogEntry*16e6/msg_manager::batch_count);
+      tlog = std::make_unique<trusted_log<LogEntry>>(LogEntry * 16e6 /
+                                                     msg_manager::batch_count);
     }
     uint8_t my_last_state[p_metadata::HashSize] = {0x0};
     uint8_t f1_last_state[p_metadata::HashSize] = {0x0};
@@ -80,23 +86,32 @@ public:
 
     using req_id = int;
     using nb_acks = int;
-    bool log(char* context_data, size_t ctx_data_sz, char* authenticator) {
-	    auto* tail = tlog->get_tail();
-	    std::unique_ptr<char[]> tail_serialized = std::make_unique<char[]>(sizeof(trusted_log<LogEntry>::log_entry));
-	    tlog->serialize_tail(tail_serialized.get());
-  	    auto [c_digest, len] = hmac_sha256(reinterpret_cast<uint8_t*>(tail_serialized.get()), sizeof(trusted_log<LogEntry>::log_entry));
-	    trusted_log<LogEntry>::log_entry e;
-	    e.sequencer = tlog->get_log_size();
-	    // c_digest is a vector<char>
-	    ::memcpy(e.c_digest, c_digest.data(), len);
-	    ::memcpy(e.authenticator, authenticator, trusted_log<LogEntry>::log_entry::AuthSize);
-	    if (ctx_data_sz > trusted_log<LogEntry>::log_entry::CtxSize) { fmt::print("[{}] error ctx_data_sz {} > CtxSize {}\n", __PRETTY_FUNCTION__, ctx_data_sz, trusted_log<LogEntry>::log_entry::CtxSize); exit(128);}
-	    ::memcpy(e.context, context_data, ctx_data_sz);
-	    if (!tlog->append(e)) {
-		    fmt::print("[{}] log is full\n", __PRETTY_FUNCTION__);
-		    return false;
-	    }
-	    return true;
+    bool log(char *context_data, size_t ctx_data_sz, char *authenticator) {
+      auto *tail = tlog->get_tail();
+      std::unique_ptr<char[]> tail_serialized =
+          std::make_unique<char[]>(sizeof(trusted_log<LogEntry>::log_entry));
+      tlog->serialize_tail(tail_serialized.get());
+      auto [c_digest, len] =
+          hmac_sha256(reinterpret_cast<uint8_t *>(tail_serialized.get()),
+                      sizeof(trusted_log<LogEntry>::log_entry));
+      trusted_log<LogEntry>::log_entry e;
+      e.sequencer = tlog->get_log_size();
+      // c_digest is a vector<char>
+      ::memcpy(e.c_digest, c_digest.data(), len);
+      ::memcpy(e.authenticator, authenticator,
+               trusted_log<LogEntry>::log_entry::AuthSize);
+      if (ctx_data_sz > trusted_log<LogEntry>::log_entry::CtxSize) {
+        fmt::print("[{}] error ctx_data_sz {} > CtxSize {}\n",
+                   __PRETTY_FUNCTION__, ctx_data_sz,
+                   trusted_log<LogEntry>::log_entry::CtxSize);
+        exit(128);
+      }
+      ::memcpy(e.context, context_data, ctx_data_sz);
+      if (!tlog->append(e)) {
+        fmt::print("[{}] log is full\n", __PRETTY_FUNCTION__);
+        return false;
+      }
+      return true;
     }
     bool update_f_hashes(int idx, int src_node, uint8_t *hash_ptr) {
       if (src_node == 1) {
@@ -143,22 +158,23 @@ static void cont_func_prp(void *context, void *t) {
 
   auto *response = tag->resp.buf;
   auto buf_sz = tag->resp.get_data_size();
-  // TODO: not sure here---validate (TNIC)
+  // validate (TNIC)
   auto [calc_mac, len] = hmac_sha256(response, (buf_sz - _hmac_size));
-
-  //log the action
-  auto ctx_data = response;
-  auto ctx_data_sz = buf_sz - _hmac_size;
-  auto authenticator = response + (buf_sz - _hmac_size);
-  ctx->metadata->log(reinterpret_cast<char*>(ctx_data), ctx_data_sz, reinterpret_cast<char*>(authenticator));
-
-  // TODO: not sure here
   if (::memcmp(response + (buf_sz - _hmac_size), calc_mac.data(), len) != 0) {
     fmt::print("[{}] error on HMAC validation\n", __PRETTY_FUNCTION__);
   }
+
+  // log the action
+  auto ctx_data = response;
+  auto ctx_data_sz = buf_sz - _hmac_size;
+  auto authenticator = response + (buf_sz - _hmac_size);
+  ctx->metadata->log(reinterpret_cast<char *>(ctx_data), ctx_data_sz,
+                     reinterpret_cast<char *>(authenticator));
+
   if ((count % kPrintBatch) == 0) {
     fmt::print("[{}] ack-ed {} prp_reqs\n", __func__, count);
   }
+#if 0
   int cmt = f_get_cmt(response);
   int sender_id = f_get_sender(response);
   bool ack = f_get_ack_val(response);
@@ -173,6 +189,7 @@ static void cont_func_prp(void *context, void *t) {
 
   // TODO: store prev followers hashes and validate and apply req
   ctx->metadata->update_f_hashes(cmt, sender_id, state);
+#endif
   delete tag;
   count++;
 }
@@ -350,55 +367,27 @@ void ctrl_c_handler(int) {
   exit(1);
 }
 
-bool followers_validation(std::unique_ptr<p_msg> recv_msg, app_context *ctx,
-                          bool last_req) {
-  static uint32_t leader_exp_cnt = 0;
-  // validate protocol
-  if (recv_msg->meta.cnt != leader_exp_cnt) {
-    std::cout << "cnt=" << recv_msg->meta.cnt
-              << " while leader's expected cnt is=" << leader_exp_cnt
-              << " whereas my cmt_idx=" << ctx->metadata->cmt_idx << "\n";
-    exit(128);
-  }
-
-  // validate leader's output
-  uint32_t output = 0;
-  ::memcpy(&output, recv_msg->output, sizeof(uint32_t));
-  if (output != leader_exp_cnt) {
-    std::cout << "> cnt=" << output
-              << " while leader's expected cnt is=" << leader_exp_cnt
-              << " whereas my cmt_idx=" << ctx->metadata->cmt_idx << "\n";
-    exit(128);
-  }
-#if 1
-  // validate previous round/state (no need to do that for leader as we check
-  // the output)
-  if (::memcmp(recv_msg->meta.f1_prev, ctx->metadata->my_last_state,
-               p_metadata::HashSize) != 0) {
-    fmt::print("[{}] f1_prev differs from my_last_state\n",
-               __PRETTY_FUNCTION__);
-    exit(128);
-  }
-  auto &f_node_state = (ctx->node_id == 1) ? ctx->metadata->f2_last_state
-                                           : ctx->metadata->f1_last_state;
-  // I only need to check if the previous node state equals mine
-  if (::memcmp(recv_msg->meta.f2_prev, f_node_state, p_metadata::HashSize) !=
-      0) {
-    fmt::print("[{}] other's follower state differs from its expected state\n",
-               __PRETTY_FUNCTION__);
-    exit(128);
-  }
-  /*
-  if (::memcmp(recv_msg->meta.prev_h, ctx->metadata->leader_last_state,
-               p_metadata::HashSize) != 0) {
-    fmt::print("[{}] leader_prev differs from leader_last_state\n",
-               __PRETTY_FUNCTION__);
-    exit(128);
-  }
-  */
-#endif
+bool apply_protocol(std::unique_ptr<p_msg> recv_msg, app_context *ctx,
+                    bool last_req) {
+  // apply the protocol (deterministic), increase the counter
   leader_exp_cnt++;
   ctx->metadata->cmt_idx++;
+  return true;
+}
+
+bool log_audit(app_context *ctx) {
+  // TODO: Implement me!
+  /* Keep sequence number of log n plus the 'expected' state after n
+   * Send the n to the participant and read from [n, n'] where n' the last entry
+   * Then apply the states using the reference implementation to audit the
+   * protocol execution
+   */
+  auto tail_idx = ctx->tlog->get_log_size();
+  for (auto i = ctx->witness_meta.last_log_seq; i < tail_idx; i++) {
+    // decode log entry
+    // apply the cmd to the expected state
+    // check if it is expected
+  }
   return true;
 }
 
@@ -428,16 +417,17 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   auto ctx_data = recv_data;
   auto ctx_data_sz = buf_sz - _hmac_size;
   auto authenticator = recv_data + (buf_sz - _hmac_size);
-  ctx->metadata->log(reinterpret_cast<char*>(ctx_data), ctx_data_sz, reinterpret_cast<char*>(authenticator));
-  //TODO: validate periodically
+  ctx->metadata->log(reinterpret_cast<char *>(ctx_data), ctx_data_sz,
+                     reinterpret_cast<char *>(authenticator));
+  // TODO: validate periodically
 
   // decode the (batched) msg and validate actions
   bool ok = true;
   for (auto i = 0; i < batch_sz; i++) {
     auto recv_msg = memcpy_into_p_msg(recv_data);
-    ok = followers_validation(std::move(recv_msg), ctx, (i == (batch_sz - 1)));
+    ok = apply_protocol(std::move(recv_msg), ctx, (i == (batch_sz - 1)));
     if (!ok) {
-      fmt::print("[{}] validation failed\n", __PRETTY_FUNCTION__);
+      fmt::print("[{}] apply the protocol failed\n", __PRETTY_FUNCTION__);
     }
     recv_data += kMsgSize;
   }
@@ -446,6 +436,7 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
     fmt::print("{} final count={}\n", __func__, count);
   count++;
 
+  // TODO: also include the original req
   /* enqueue ack-response */
   ack_msg ack;
   ack.sender = ctx->node_id;

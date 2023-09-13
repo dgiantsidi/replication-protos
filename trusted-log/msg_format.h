@@ -39,6 +39,8 @@ struct ack_msg {
   uint32_t cmt;
   uint32_t sender;
   uint8_t state[HashSize];
+  // TODO: log the sender's action too
+  //  uint8_t cmd[CmdSize];
 };
 
 static int f_get_msg_buf_sz() { return sizeof(ack_msg); }
