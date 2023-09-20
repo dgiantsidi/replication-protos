@@ -1,3 +1,4 @@
+#pragma once
 #include "openssl/hmac.h"
 #include <tuple>
 #include <vector>
