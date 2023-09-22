@@ -29,6 +29,7 @@
 hostent *hostip = gethostbyname("localhost");
 
 void client(int port, std::unique_ptr<char[]> buf, size_t size) {
+ hostip = gethostbyname("localhost");
   auto sending_fd = -1;
   auto fd = connect_to_the_server(port, "localhost", sending_fd);
 
@@ -71,6 +72,7 @@ auto main(int argc, char *argv[]) -> int {
   // NOLINTNEXTLINE(concurrency-mt-unsafe)
   auto port = 18000;
   auto sz = 64;
+ // fmt::print("[{}] addr={}\n", __func__, hostip->h_addr);
   std::unique_ptr<char[]> buf = std::make_unique<char[]>(sz);
   //  ::memset(buf.get(), '1', sz);
   client(port, std::move(buf), sz);

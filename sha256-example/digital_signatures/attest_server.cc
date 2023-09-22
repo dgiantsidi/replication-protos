@@ -1,4 +1,5 @@
 #include "enc_lib.h"
+#include "hmac_lib.h"
 #include "net/shared.h"
 #include <arpa/inet.h>
 #include <cerrno>
@@ -131,6 +132,15 @@ auto main(int argc, char *argv[]) -> int {
 			int op = buffer.get()[bytecount - 1];
 			switch (op) {
 				case p::enc: {
+						     	auto res = hmac_sha256(reinterpret_cast<uint8_t*>(buffer.get()), bytecount);
+							auto digest_sz = std::get<0>(res).size();
+							auto& digest = std::get<0>(res);
+						     	auto ret_ptr = std::make_unique<char[]>(digest_sz + bytecount);
+							::memcpy(ret_ptr.get(), digest.data(), digest_sz);
+							::memcpy(ret_ptr.get() + digest_sz, buffer.get(), bytecount);
+							return {digest_sz + bytecount, std::move(ret_ptr)};
+#if 0
+
 						     auto encrypted = std::make_unique<char[]>(signature_size);
 						     uint8_t *ptr_enc = reinterpret_cast<uint8_t *>(encrypted.get());
 						     int encrypted_length = priv_sign_sha256(
@@ -142,6 +152,7 @@ auto main(int argc, char *argv[]) -> int {
 						     }
 
 						     return {encrypted_length, std::move(encrypted)};
+#endif
 					     }
 
 				default: {
