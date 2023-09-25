@@ -31,7 +31,7 @@ void create_communication_pair(int listening_socket) {
 	auto *he = hostip;
 	fmt::print("{} ...\n", __PRETTY_FUNCTION__);
 	// TODO: port = take the string
-	int port = 30500;
+	int port = 18001;
 
 	int sockfd = -1;
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
