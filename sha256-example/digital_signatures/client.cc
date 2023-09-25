@@ -38,8 +38,9 @@ void client(int port, std::unique_ptr<char[]> buf, size_t size) {
   fmt::print("[{}] connect_to_the_server sending_fd={} fd={}\n", __func__,
              sending_fd, fd);
 
+  auto  reqs_num = 1e6;
   auto start = std::chrono::high_resolution_clock::now();
-  for (auto i = 0; i < 10000; i++) {
+  for (auto i = 0; i < reqs_num; i++) {
     //   fmt::print("[{}] \n", __func__);
     auto sending_sz = size + length_size_field;
     auto buff = std::make_unique<char[]>(sending_sz);
@@ -64,7 +65,7 @@ void client(int port, std::unique_ptr<char[]> buf, size_t size) {
       std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
 
   std::cout << "RESULT: " << avg_duration << " and latency="
-            << static_cast<float>(avg_duration * 1.0 / (10000 * 1.0))
+            << static_cast<float>(avg_duration * 1.0 / (reqs_num * 1.0))
             << "us \n";
 }
 
