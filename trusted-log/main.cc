@@ -264,11 +264,20 @@ void flash_batcher(const std::vector<int> &dest_ids, app_context *ctx) {
   // needs to send
   for (auto &dest_id : dest_ids) {
     rpc_buffs *buffs = new rpc_buffs(ctx->rpc);
-    buffs->alloc_req_buf(sizeof(p_msg) * ctx->batcher->cur_idx, ctx->rpc);
-    buffs->alloc_resp_buf(kAckSize, ctx->rpc);
+    buffs->alloc_req_buf(kMsgSize * ctx->batcher->cur_idx + _hmac_size,
+                         ctx->rpc);
+    buffs->alloc_resp_buf(kAckSize + _hmac_size, ctx->rpc);
 
     ::memcpy(buffs->req.buf, ctx->batcher->serialize_batch(),
-             sizeof(p_msg) * ctx->batcher->cur_idx);
+             kMsgSize * ctx->batcher->cur_idx);
+    auto [mac, len] =
+        hmac_sha256(buffs->req.buf, kMsgSize * ctx->batcher->cur_idx);
+    if (len != _hmac_size) {
+      fmt::print("[{}] len ({}) != _hmac_size ({})\n", __PRETTY_FUNCTION__, len,
+                 _hmac_size);
+    }
+    ::memcpy(buffs->req.buf + kMsgSize * ctx->batcher->cur_idx, mac.data(),
+             len);
     // enqueue_req
     ctx->rpc->enqueue_request(ctx->connections[dest_id], kReqPropose,
                               &buffs->req, &buffs->resp, cont_func_prp,
@@ -496,8 +505,9 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
 
   auto batch_sz = (buf_sz - _hmac_size) / kMsgSize;
   if ((buf_sz - _hmac_size) % kMsgSize != 0) {
-    fmt::print("[{}] something seems wrong with buf_sz {} (kMsgSize {})\n",
-               __PRETTY_FUNCTION__, buf_sz, kMsgSize);
+    fmt::print(
+        "[{}] something seems wrong (count={}) with buf_sz {} (kMsgSize {})\n",
+        __PRETTY_FUNCTION__, count, buf_sz, kMsgSize);
   }
 
   // validate before execution (TNIC)
