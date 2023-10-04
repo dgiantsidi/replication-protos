@@ -216,9 +216,11 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
   ::memcpy(msg_buf->meta.f2_prev, ctx->get_f2_hash(), p_metadata::HashSize);
 
   memcpy_p_msg_into_buffer(*(msg_buf.get()), char_msg_buf.get());
+#if 0
   std::cout << "MY DEBUG:\n";
   decode_print_ctx(reinterpret_cast<char *>(char_msg_buf.get()));
   std::cout << "MY DEBUG ends\n";
+#endif
 
   if (p_get_msg_buf_sz() != sizeof(p_msg)) {
     fmt::print(
@@ -547,7 +549,7 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   ::memcpy(&ack.output, &(ack.cmt), sizeof(uint32_t));
   ::memcpy(&ack.ack, &(ok), sizeof(bool));
 
-  // TODO: also include the original req
+  // also include the original req
   ::memcpy(&ack.cmd, kDefaultCmd, p_msg::CmdSize);
 
   // HMAC-state here (TNIC but local, no sending)
