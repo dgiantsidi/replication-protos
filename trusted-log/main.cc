@@ -69,10 +69,10 @@ public:
   struct protocol_metadata {
     struct audit_protocol {
       int last_log_seq = 0;
-      int last_state_cmt = 0;
     };
 
-    struct audit_protocol witness_meta;
+    std::map<int, struct audit_protocol> witness_meta;
+    int last_state_cmt = 0;
     int leader = pb::follower;
     bool is_leader() { return leader == pb::leader; }
     uint32_t cmt_idx = 0;
@@ -84,6 +84,8 @@ public:
     std::unique_ptr<trusted_log<LogEntry>> tlog;
 
     protocol_metadata() {
+      witness_meta.emplace(std::make_pair(1 /* node id */, audit_protocol()));
+      witness_meta.emplace(std::make_pair(2 /* node id */, audit_protocol()));
       tlog = std::make_unique<trusted_log<LogEntry>>(LogEntry * 16e6 /
                                                      msg_manager::batch_count);
     }
@@ -343,8 +345,10 @@ void leader_func(app_context *ctx,
   }
   flash_batcher(followers, ctx);
   fmt::print("{} polls until the end ...\n", __func__);
-  for (;;)
+  for (;;) {
     ctx->rpc->run_event_loop_once();
+    log_audit(ctx);
+  }
 }
 
 void follower_func(app_context *ctx, const std::string &uri) {
@@ -476,19 +480,36 @@ bool log_audit(app_context *ctx) {
    * Then apply the states using the reference implementation to audit the
    * protocol execution
    */
-  fmt::print("[{}] ############ START ############\n", __func__);
   auto &log_handle = ctx->metadata->tlog;
   auto tail_idx = log_handle->get_log_size();
-  for (auto i = ctx->metadata->witness_meta.last_log_seq; i < tail_idx; i++) {
+  if (ctx->metadata->last_state_cmt == tail_idx)
+    return true;
+  fmt::print("[{}] ############ START ############ tail_idx={}\n", __func__,
+             tail_idx);
+  for (auto i = ctx->metadata->last_state_cmt; i < tail_idx; i++) {
     char *ctx_ptr = nullptr;
     size_t ctx_sz = 0;
     log_handle->print_entry_at(i, ctx_ptr, ctx_sz);
     // decode log entry
     auto res_cmt_output_sender = decode_print_ctx_leader(ctx_ptr);
-    // apply the cmd to the expected state
-    ctx->metadata->witness_meta.last_log_seq++;
+    auto cmt_val = std::get<0>(res_cmt_output_sender);
+    auto output_val = std::get<1>(res_cmt_output_sender);
+    auto sender_val = std::get<2>(res_cmt_output_sender);
 
-    // TODO:  check if it is expected
+    ctx->metadata->witness_meta[sender_val].last_log_seq +=
+        msg_manager::batch_count;
+    // check if it is expected
+    if ((cmt_val != output_val) ||
+        (cmt_val != ctx->metadata->witness_meta[sender_val].last_log_seq)) {
+      fmt::print("[{}] failed@i={} "
+                 "cmt_val:{}\toutput_val:{}\tctx->metadata->witness_meta[{}]."
+                 "last_log_seq:{}\n",
+                 __PRETTY_FUNCTION__, i, cmt_val, output_val, sender_val,
+                 ctx->metadata->witness_meta[sender_val].last_log_seq);
+      exit(128);
+    }
+    // apply the cmd to the expected state
+    ctx->metadata->last_state_cmt++;
   }
   fmt::print("[{}] ############ END ############ tail_idx={}\n", __func__,
              tail_idx);
