@@ -97,11 +97,33 @@ public:
     using req_id = int;
     using nb_acks = int;
 
+    bool validate_log_entry(int cur_idx) {
+      if (cur_idx == 0)
+        return true;
+      auto prev_idx = cur_idx - 1;
+      std::unique_ptr<char[]> prev_entry =
+          std::make_unique<char[]>(sizeof(trusted_log<LogEntry>::log_entry));
+      tlog->serialize_entry(prev_entry.get(), prev_idx);
+
+      auto [c_digest, len] =
+          hmac_sha256(reinterpret_cast<uint8_t *>(prev_entry.get()),
+                      sizeof(trusted_log<LogEntry>::log_entry));
+      auto *cur_digest = tlog->get_entry_at(cur_idx) +
+                         sizeof(trusted_log<LogEntry>::log_entry::sequencer) +
+                         sizeof(trusted_log<LogEntry>::log_entry::CtxSize);
+      if (::memcmp(c_digest.data(), cur_digest, len) != 0) {
+        fmt::print("[{}] c_digest != cur_digest\n", __PRETTY_FUNCTION__);
+        return false;
+      }
+      return true;
+    }
+
     bool log(char *context_data, size_t ctx_data_sz, char *authenticator) {
       auto *tail = tlog->get_tail();
       std::unique_ptr<char[]> tail_serialized =
           std::make_unique<char[]>(sizeof(trusted_log<LogEntry>::log_entry));
       tlog->serialize_tail(tail_serialized.get());
+      // TODO: digest of tail + current entry
       auto [c_digest, len] =
           hmac_sha256(reinterpret_cast<uint8_t *>(tail_serialized.get()),
                       sizeof(trusted_log<LogEntry>::log_entry));
@@ -489,7 +511,8 @@ bool log_audit(app_context *ctx) {
     char *ctx_ptr = nullptr;
     size_t ctx_sz = 0;
 
-    // TODO: check the HMAC
+    // check the HMAC
+    ctx->metadata->validate_log_entry(i);
     log_handle->print_entry_at(i, ctx_ptr, ctx_sz);
     // decode log entry
     auto res_cmt_output_sender = decode_print_ctx_leader(ctx_ptr);

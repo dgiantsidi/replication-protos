@@ -66,6 +66,22 @@ public:
 
   uint32_t get_log_size() { return cur_idx; }
 
+  void serialize_entry(char *pre_allocated_buf, uint32_t idx) {
+    auto cur_entry = get_entry_at(idx);
+    size_t offset = 0;
+    ::memcpy(pre_allocated_buf + offset, cur_entry + offset,
+             sizeof(log_entry::sequencer));
+    offset += sizeof(log_entry::sequencer);
+    ::memcpy(pre_allocated_buf + offset, cur_entry + offset,
+             log_entry::CtxSize);
+    offset += log_entry::CtxSize;
+    ::memcpy(pre_allocated_buf + offset, cur_entry + offset,
+             log_entry::HashSize);
+    offset += log_entry::HashSize;
+    ::memcpy(pre_allocated_buf + offset, cur_entry + offset,
+             log_entry::AuthSize);
+  }
+
   void serialize_tail(char *pre_allocated_buf) {
     size_t offset = 0;
     ::memcpy(pre_allocated_buf + offset, tail + offset,
