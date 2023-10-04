@@ -19,13 +19,18 @@ static constexpr uint8_t kDefaultCmd[p_msg::CmdSize] = {0x0};
 DEFINE_uint64(num_server_threads, 1, "Number of threads at the server machine");
 DEFINE_uint64(num_client_threads, 1, "Number of threads per client machine");
 DEFINE_uint64(process_id, 0, "Process id");
-DEFINE_uint64(reqs_num, 200e6, "Number of reqs");
+DEFINE_uint64(reqs_num, 200, "Number of reqs");
 
 using rpc_handle = erpc::Rpc<erpc::CTransport>;
 
 enum pb { leader = 0, follower = 1 };
 
+// forward decls
 class app_context;
+bool log_audit(app_context *ctx);
+void decode_print_ctx(const char *ctx_ptr);
+std::tuple<uint32_t, uint32_t, uint32_t>
+decode_print_ctx_leader(const char *ctx_ptr);
 
 struct rpc_buffs {
   erpc::MsgBuffer req;
@@ -66,7 +71,8 @@ public:
       int last_log_seq = 0;
       int last_state_cmt = 0;
     };
-    stuct audit_protocol witness_meta;
+
+    struct audit_protocol witness_meta;
     int leader = pb::follower;
     bool is_leader() { return leader == pb::leader; }
     uint32_t cmt_idx = 0;
@@ -74,7 +80,9 @@ public:
     uint8_t mock_h1[p_metadata::HashSize] = {0x0};
     uint8_t mock_h2[p_metadata::HashSize] = {0x0};
     static constexpr size_t LogEntry = kMsgSize * msg_manager::batch_count;
+
     std::unique_ptr<trusted_log<LogEntry>> tlog;
+
     protocol_metadata() {
       tlog = std::make_unique<trusted_log<LogEntry>>(LogEntry * 16e6 /
                                                      msg_manager::batch_count);
@@ -86,6 +94,7 @@ public:
 
     using req_id = int;
     using nb_acks = int;
+
     bool log(char *context_data, size_t ctx_data_sz, char *authenticator) {
       auto *tail = tlog->get_tail();
       std::unique_ptr<char[]> tail_serialized =
@@ -197,6 +206,7 @@ static void cont_func_prp(void *context, void *t) {
 void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
   // construct message
   auto msg_buf = std::make_unique<p_msg>();
+  auto char_msg_buf = std::make_unique<uint8_t[]>(sizeof(p_msg));
 
   // fill in the message buf with data
   ::memcpy(msg_buf->cmd, kDefaultCmd, p_msg::CmdSize);
@@ -205,14 +215,19 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
   ::memcpy(msg_buf->meta.f1_prev, ctx->get_f1_hash(), p_metadata::HashSize);
   ::memcpy(msg_buf->meta.f2_prev, ctx->get_f2_hash(), p_metadata::HashSize);
 
+  memcpy_p_msg_into_buffer(*(msg_buf.get()), char_msg_buf.get());
+  std::cout << "MY DEBUG:\n";
+  decode_print_ctx(reinterpret_cast<char *>(char_msg_buf.get()));
+  std::cout << "MY DEBUG ends\n";
+
   if (p_get_msg_buf_sz() != sizeof(p_msg)) {
     fmt::print(
         "[{}] buf sizes missmatch (check alignment and padding!) {} vs {}\n",
         __PRETTY_FUNCTION__, p_get_msg_buf_sz(), sizeof(p_msg));
     exit(128);
   }
-  if (!ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
-                                 sizeof(p_msg))) {
+  if (!ctx->batcher->enqueue_req(
+          reinterpret_cast<uint8_t *>(char_msg_buf.get()), sizeof(p_msg))) {
     for (auto &dest_id : dest_ids) {
       // needs to send
       rpc_buffs *buffs = new rpc_buffs(ctx->rpc);
@@ -242,6 +257,7 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
                               p_get_msg_buf_sz());
     ctx->enqueued_msgs_cnt++;
   }
+  log_audit(ctx);
 }
 
 void flash_batcher(const std::vector<int> &dest_ids, app_context *ctx) {
@@ -370,9 +386,76 @@ void ctrl_c_handler(int) {
 bool apply_protocol(std::unique_ptr<p_msg> recv_msg, app_context *ctx,
                     bool last_req) {
   // apply the protocol (deterministic), increase the counter
-  leader_exp_cnt++;
   ctx->metadata->cmt_idx++;
   return true;
+}
+#include <tuple>
+std::tuple<uint32_t, uint32_t, uint32_t>
+decode_print_ctx_leader(const char *ctx_ptr) {
+  fmt::print("[{}]\n", __func__);
+  auto cmd_ptr = ctx_ptr;
+  bool res = *(reinterpret_cast<const bool *>(cmd_ptr));
+  fmt::print("ack: {}\n", res);
+  fmt::print("\n");
+  if (!res) {
+    fmt::print("[{}] ack equals false\n", __PRETTY_FUNCTION__);
+    exit(128);
+  }
+
+  fmt::print("output:");
+  auto output_ptr = cmd_ptr + ack_msg::AckSize;
+  uint32_t output_val = *(reinterpret_cast<const uint32_t *>(output_ptr));
+  fmt::print("{}", output_val);
+  fmt::print("\n");
+
+  fmt::print("cmt:");
+  auto *cmt_ptr = cmd_ptr + ack_msg::AckSize + ack_msg::OutSize;
+  uint32_t cmt_val;
+  ::memcpy(&cmt_val, cmt_ptr, sizeof(uint32_t));
+  fmt::print("{}", cmt_val);
+  fmt::print("\n");
+
+  fmt::print("sender:");
+  auto *sender_ptr =
+      cmd_ptr + ack_msg::AckSize + ack_msg::OutSize + sizeof(ack_msg::cmt);
+  uint32_t sender_val = *(reinterpret_cast<const uint32_t *>(sender_ptr));
+  fmt::print("{}", sender_val);
+  fmt::print("\n");
+
+  fmt::print("leader cmd:");
+  auto *org_cmd = sender_ptr + ack_msg::HashSize;
+  if (::memcmp(org_cmd, kDefaultCmd, p_msg::CmdSize) != 0) {
+    fmt::print("[{}] Wrong cmd\n", __PRETTY_FUNCTION__);
+    exit(128);
+  }
+  fmt::print(" default");
+#if 0
+	for (auto i = 0; i < p_msg::CmdSize; i++) {
+		fmt::print("{}", reinterpret_cast<const char*>(org_cmd)[i]);
+	}
+#endif
+  fmt::print("\n");
+  return {cmt_val, output_val, sender_val};
+}
+
+void decode_print_ctx(const char *ctx_ptr) {
+  fmt::print("[{}]\n", __func__);
+  auto cmd_ptr = ctx_ptr;
+  fmt::print("cmd:");
+  for (auto i = 0; i < p_msg::CmdSize; i++) {
+    fmt::print("{}", cmd_ptr[i]);
+  }
+  fmt::print("\n");
+
+  fmt::print("output:");
+  auto output_ptr = cmd_ptr + p_msg::CmdSize;
+  fmt::print("{}", *(reinterpret_cast<const uint32_t *>(output_ptr)));
+  fmt::print("\n");
+
+  fmt::print("msg_cnt:");
+  auto *msg_cnt_ptr = cmd_ptr + p_msg::CmdSize + p_msg::OutSize;
+  fmt::print("{}", *(reinterpret_cast<const uint32_t *>(msg_cnt_ptr)));
+  fmt::print("\n");
 }
 
 bool log_audit(app_context *ctx) {
@@ -382,12 +465,22 @@ bool log_audit(app_context *ctx) {
    * Then apply the states using the reference implementation to audit the
    * protocol execution
    */
-  auto tail_idx = ctx->tlog->get_log_size();
-  for (auto i = ctx->witness_meta.last_log_seq; i < tail_idx; i++) {
+  fmt::print("[{}] ############ START ############\n", __func__);
+  auto &log_handle = ctx->metadata->tlog;
+  auto tail_idx = log_handle->get_log_size();
+  for (auto i = ctx->metadata->witness_meta.last_log_seq; i < tail_idx; i++) {
+    char *ctx_ptr = nullptr;
+    size_t ctx_sz = 0;
+    log_handle->print_entry_at(i, ctx_ptr, ctx_sz);
     // decode log entry
+    auto res_cmt_output_sender = decode_print_ctx_leader(ctx_ptr);
     // apply the cmd to the expected state
-    // check if it is expected
+    ctx->metadata->witness_meta.last_log_seq++;
+
+    // TODO:  check if it is expected
   }
+  fmt::print("[{}] ############ END ############ tail_idx={}\n", __func__,
+             tail_idx);
   return true;
 }
 
@@ -414,7 +507,8 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   }
 
   // log the action
-  auto ctx_data = recv_data;
+  char *ctx_data = reinterpret_cast<char *>(recv_data);
+  decode_print_ctx(ctx_data);
   auto ctx_data_sz = buf_sz - _hmac_size;
   auto authenticator = recv_data + (buf_sz - _hmac_size);
   ctx->metadata->log(reinterpret_cast<char *>(ctx_data), ctx_data_sz,
@@ -436,13 +530,15 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
     fmt::print("{} final count={}\n", __func__, count);
   count++;
 
-  // TODO: also include the original req
   /* enqueue ack-response */
   ack_msg ack;
   ack.sender = ctx->node_id;
   ack.cmt = ctx->metadata->cmt_idx;
   ::memcpy(&ack.output, &(ack.cmt), sizeof(uint32_t));
   ::memcpy(&ack.ack, &(ok), sizeof(bool));
+
+  // TODO: also include the original req
+  ::memcpy(&ack.cmd, kDefaultCmd, p_msg::CmdSize);
 
   // HMAC-state here (TNIC but local, no sending)
   auto [state_mac, sz] = hmac_sha256(ack.state, ack_msg::HashSize);
