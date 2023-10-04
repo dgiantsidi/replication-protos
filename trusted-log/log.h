@@ -15,6 +15,15 @@ public:
     char authenticator[AuthSize]; // authenticator size of the entry
     log_entry() {}
   };
+  void print_entry_at(size_t idx, char *&ctx_ptr, size_t &ctx_sz) {
+    auto entry_ptr = get_entry_at(idx);
+    fmt::print("idx={}\t", idx);
+    uint32_t sequencer;
+    ::memcpy(&sequencer, entry_ptr, sizeof(sequencer));
+    fmt::print("sequencer={}\n", sequencer);
+    ctx_ptr = entry_ptr + sizeof(sequencer);
+    ctx_sz = log_entry::CtxSize;
+  }
 
   trusted_log() = delete;
   trusted_log(const trusted_log &other) = delete;

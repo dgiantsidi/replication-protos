@@ -3,15 +3,15 @@
 
 /* the batched message */
 struct msg_manager {
-  static constexpr size_t batch_count = 16;
+  static constexpr size_t batch_count = 2;
   msg_manager() {
     buffer = std::make_unique<uint8_t[]>(batch_count * kMsgSize);
     fmt::print("sizeof(msg)={}\n", kMsgSize);
   };
 
   bool enqueue_req(uint8_t *buf, size_t buf_sz) {
-    if (buf_sz != kMsgSize)
-      fmt::print("[{}] buf_sz ({}) != sizeof(msg) ({})\n", __PRETTY_FUNCTION__,
+    if (buf_sz > kMsgSize)
+      fmt::print("[{}] buf_sz ({}) > sizeof(msg) ({})\n", __PRETTY_FUNCTION__,
                  buf_sz, kMsgSize);
     if (cur_idx < batch_count) {
       ::memcpy(buffer.get() + cur_idx * kMsgSize, buf, buf_sz);
