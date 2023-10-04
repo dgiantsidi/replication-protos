@@ -474,7 +474,6 @@ void decode_print_ctx(const char *ctx_ptr) {
 }
 
 bool log_audit(app_context *ctx) {
-  // TODO: Implement me!
   /* Keep sequence number of log n plus the 'expected' state after n
    * Send the n to the participant and read from [n, n'] where n' the last entry
    * Then apply the states using the reference implementation to audit the
@@ -489,6 +488,8 @@ bool log_audit(app_context *ctx) {
   for (auto i = ctx->metadata->last_state_cmt; i < tail_idx; i++) {
     char *ctx_ptr = nullptr;
     size_t ctx_sz = 0;
+
+    // TODO: check the HMAC
     log_handle->print_entry_at(i, ctx_ptr, ctx_sz);
     // decode log entry
     auto res_cmt_output_sender = decode_print_ctx_leader(ctx_ptr);
