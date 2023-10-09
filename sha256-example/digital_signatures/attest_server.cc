@@ -31,7 +31,7 @@ void create_communication_pair(int listening_socket) {
 	auto *he = hostip;
 	fmt::print("{} ...\n", __PRETTY_FUNCTION__);
 	// TODO: port = take the string
-	int port = 30500;
+	int port = 18001;
 
 	int sockfd = -1;
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
@@ -132,6 +132,9 @@ auto main(int argc, char *argv[]) -> int {
 			int op = buffer.get()[bytecount - 1];
 			switch (op) {
 				case p::enc: {
+		if (cnt % 1000 == 0)
+			fmt::print("{}\n", cnt);
+		cnt++;
 						     	auto res = hmac_sha256(reinterpret_cast<uint8_t*>(buffer.get()), bytecount);
 							auto digest_sz = std::get<0>(res).size();
 							auto& digest = std::get<0>(res);
@@ -156,6 +159,7 @@ auto main(int argc, char *argv[]) -> int {
 					     }
 
 				default: {
+			fmt::print("{}\n", __func__);
 						 auto decrypted = std::make_unique<char[]>(signature_size);
 						 uint8_t *ptr_dec = reinterpret_cast<uint8_t *>(decrypted.get());
 						 auto decrypted_length = pub_verify_sha256(
@@ -189,9 +193,6 @@ auto main(int argc, char *argv[]) -> int {
 
 		secure_send(reply_socket, ptr.get(),
 				(encrypted_length + length_size_field));
-		if (cnt % 1000 == 0)
-			fmt::print("{}\n", cnt);
-		cnt++;
 	}
 
 	return 0;
