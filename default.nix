@@ -10,8 +10,10 @@ let
       pkg-config
       boost
       glog
+      gdb
       folly
       gtest
+      vim
       linuxHeaders
       openssl
       cmake
