@@ -38,7 +38,7 @@ void client(int port, std::unique_ptr<char[]> buf, size_t size) {
   fmt::print("[{}] connect_to_the_server sending_fd={} fd={}\n", __func__,
              sending_fd, fd);
 
-  auto reqs_num = 1e6;
+  auto  reqs_num = 1e6;
   auto start = std::chrono::high_resolution_clock::now();
   for (auto i = 0; i < reqs_num; i++) {
     //   fmt::print("[{}] \n", __func__);
