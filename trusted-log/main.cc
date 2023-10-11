@@ -19,7 +19,7 @@ static constexpr uint8_t kDefaultCmd[p_msg::CmdSize] = {0x0};
 DEFINE_uint64(num_server_threads, 1, "Number of threads at the server machine");
 DEFINE_uint64(num_client_threads, 1, "Number of threads per client machine");
 DEFINE_uint64(process_id, 0, "Process id");
-DEFINE_uint64(reqs_num, 200, "Number of reqs");
+DEFINE_uint64(reqs_num, 20, "Number of reqs");
 
 using rpc_handle = erpc::Rpc<erpc::CTransport>;
 
@@ -108,11 +108,23 @@ public:
       auto [c_digest, len] =
           hmac_sha256(reinterpret_cast<uint8_t *>(prev_entry.get()),
                       sizeof(trusted_log<LogEntry>::log_entry));
-      auto *cur_digest = tlog->get_entry_at(cur_idx) +
+      char *ctx_ptr = nullptr;
+      size_t ctx_sz = 0;
+      tlog->print_entry_at(cur_idx, ctx_ptr, ctx_sz);
+      char *cur_digest = tlog->get_entry_at(cur_idx) +
                          sizeof(trusted_log<LogEntry>::log_entry::sequencer) +
-                         sizeof(trusted_log<LogEntry>::log_entry::CtxSize);
+                         trusted_log<LogEntry>::log_entry::CtxSize;
       if (::memcmp(c_digest.data(), cur_digest, len) != 0) {
-        fmt::print("[{}] c_digest != cur_digest\n", __PRETTY_FUNCTION__);
+        fmt::print("[{}] c_digest != cur_digest\nc_digest=",
+                   __PRETTY_FUNCTION__);
+        for (auto i = 0ULL; i < len; i++) {
+          fmt::print("{}", c_digest.data()[i]);
+        }
+        fmt::print("\ncur_digest=");
+        for (auto i = 0ULL; i < len; i++) {
+          fmt::print("{}", reinterpret_cast<unsigned char *>(cur_digest)[i]);
+        }
+        fmt::print("\n");
         return false;
       }
       return true;
@@ -131,6 +143,16 @@ public:
       e.sequencer = tlog->get_log_size();
       // c_digest is a vector<char>
       ::memcpy(e.c_digest, c_digest.data(), len);
+      fmt::print("[{}] digest to be added:", __func__);
+      for (auto i = 0ULL; i < len; i++) {
+        fmt::print("{}", c_digest.data()[i]);
+      }
+      fmt::print("\n");
+      fmt::print("[{}] added entry digest:", __func__);
+      for (auto i = 0ULL; i < len; i++) {
+        fmt::print("{}", reinterpret_cast<unsigned char *>(e.c_digest)[i]);
+      }
+      fmt::print("\n");
       ::memcpy(e.authenticator, authenticator,
                trusted_log<LogEntry>::log_entry::AuthSize);
       if (ctx_data_sz > trusted_log<LogEntry>::log_entry::CtxSize) {

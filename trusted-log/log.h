@@ -23,6 +23,12 @@ public:
     fmt::print("sequencer={}\n", sequencer);
     ctx_ptr = entry_ptr + sizeof(sequencer);
     ctx_sz = log_entry::CtxSize;
+    fmt::print("[{}] c_digest=", __func__);
+    for (auto i = 0ULL; i < log_entry::AuthSize; i++) {
+      fmt::print("{}", reinterpret_cast<unsigned char *>(
+                           (ctx_ptr + log_entry::CtxSize))[i]);
+    }
+    fmt::print("\n");
   }
 
   trusted_log() = delete;
@@ -56,6 +62,10 @@ public:
       return false;
     }
     append_entry(get_cur_log_idx(), entry);
+    char *ctx_ptr = nullptr;
+    size_t ctx_sz = 0;
+
+    print_entry_at(cur_idx, ctx_ptr, ctx_sz);
     inc_idx();
     return true;
   }
@@ -114,10 +124,22 @@ private:
     size_t offset = 0;
     ::memcpy(pos + offset, &entry.sequencer, sizeof(log_entry::sequencer));
     offset += sizeof(log_entry::sequencer);
-    ::memcpy(pos + offset, &entry.context, log_entry::CtxSize);
+    ::memcpy(pos + offset, entry.context, log_entry::CtxSize);
     offset += log_entry::CtxSize;
-    ::memcpy(pos + offset, &entry.c_digest, log_entry::HashSize);
+    ::memcpy(pos + offset, entry.c_digest, log_entry::HashSize);
+    fmt::print("[{}] pos+offset=", __func__);
+    for (auto i = 0ULL; i < log_entry::HashSize; i++) {
+      fmt::print("{}", reinterpret_cast<unsigned char *>(pos + offset)[i]);
+    }
+    fmt::print("\n");
+    fmt::print("[{}] c_digest=", __func__);
+    for (auto i = 0ULL; i < log_entry::HashSize; i++) {
+      fmt::print("{}",
+                 reinterpret_cast<const unsigned char *>(entry.c_digest)[i]);
+    }
+    fmt::print("\n");
+
     offset += log_entry::HashSize;
-    ::memcpy(pos + offset, &entry.authenticator, log_entry::AuthSize);
+    ::memcpy(pos + offset, entry.authenticator, log_entry::AuthSize);
   }
 };
