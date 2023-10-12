@@ -11,7 +11,7 @@ public:
     char context[CtxSize];   // context = value
     char c_digest[HashSize]; // digest over the current entry + the previous
                              // entry c_digest(i) =
-                             // h(sequence||context||c_digest(i-1))
+                             // h(sequencer||context||c_digest(i-1))
     log_entry() {}
     log_entry(const log_entry &other) {
       sequencer = other.sequencer;
@@ -38,6 +38,40 @@ public:
       return *(this);
     }
   };
+
+  bool a2m_append(const std::vector<char> &value) {
+    if (cur_idx >= nb_max_entries) {
+      return false;
+    }
+    log_entry to_be_added;
+    to_be_added.sequencer = get_log_size();
+    size_t len = value.size();
+    if (len > log_entry::CtxSize) {
+      fmt::print("[{}] trimming the value len as it is too big {}\n",
+                 __PRETTY_FUNCTION__, len);
+      len = log_entry::CtxSize;
+    }
+    ::memcpy(to_be_added.context, value.data(), len);
+    // calculating the digest (chain)
+    size_t tmp_sz = log_entry::HashSize + len + sizeof(log_entry::sequencer);
+    std::unique_ptr<uint8_t[]> tmp = std::make_unique<uint8_t[]>(tmp_sz);
+    size_t offset = 0;
+    ::memcpy(tmp.get() + offset, &(to_be_added.sequencer),
+             sizeof(log_entry::sequencer));
+    offset += sizeof(log_entry::sequencer);
+    ::memcpy(tmp.get() + offset, to_be_added.context, len);
+    offset += log_entry::CtxSize;
+
+    ::memcpy(tmp.get() + offset, get_tail_digest(), log_entry::CtxSize);
+
+    auto [c_digest, d_len] = hmac_sha256(tmp.get(), tmp_sz);
+    if (d_len != log_entry::HashSize) {
+      fmt::print("[{}] Error #1 d_len != log_entry::HashSize\n",
+                 __PRETTY_FUNCTION__);
+    }
+    ::memcpy(to_be_added.c_digest, c_digest.data(), d_len);
+    return append(to_be_added);
+  }
 
   void print_entry_at(size_t idx, char *&ctx_ptr, size_t &ctx_sz) {
     auto entry_ptr = get_entry_at(idx);
@@ -87,7 +121,8 @@ public:
     lookup_attestation(int mode) { w = mode; };
   };
 
-  lookup_attestation lookup(size_t idx, uint64_t nonce) {
+  lookup_attestation a2m_lookup(size_t idx, uint64_t nonce) {
+    // TODO: use nonce correctly
     if (idx > get_log_size()) {
       return lookup_attestation(lookup_attestation::UNASSAGNED);
     }
@@ -106,6 +141,7 @@ public:
     ::memcpy(ret_a.digest, ctx_ptr, sizeof(log_entry::HashSize));
     return ret_a;
   }
+
   bool append(const log_entry &entry) {
     if (cur_idx >= nb_max_entries) {
       fmt::print("[{}] log is full\n", __PRETTY_FUNCTION__);
@@ -160,6 +196,11 @@ private:
 
   char *get_log_entry_at_idx(size_t idx) {
     return mem_log.get() + idx * sizeof(log_entry);
+  }
+
+  uint8_t *get_tail_digest() {
+    return reinterpret_cast<uint8_t *>(
+        get_cur_log_idx() + sizeof(log_entry::sequencer) + log_entry::CtxSize);
   }
 
   void inc_idx() { cur_idx++; }
