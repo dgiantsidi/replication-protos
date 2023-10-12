@@ -3,6 +3,8 @@ cr/build/*
 bft-cr/build/*
 rf/build/*
 alc/build/*
+trusted-log/build/*
+a2m-single-node/build/*
 eRPC
 dpdk*
 dependencies
