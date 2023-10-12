@@ -8,33 +8,34 @@ public:
     static constexpr size_t CtxSize = CTX_SIZE;
     static constexpr size_t HashSize = _hmac_size;
     uint32_t sequencer;
-    char context[CtxSize];	// context = value
+    char context[CtxSize];   // context = value
     char c_digest[HashSize]; // digest over the current entry + the previous
-                             // entry c_digest(i) = h(sequence||context||c_digest(i-1))
+                             // entry c_digest(i) =
+                             // h(sequence||context||c_digest(i-1))
     log_entry() {}
-    log_entry(const log_entry& other) {
-	    sequencer = other.sequencer;
-	    ::memcpy(context, other.context, CtxSize);
-	    ::memcpy(c_digest, other.c_digest, HashSize);
+    log_entry(const log_entry &other) {
+      sequencer = other.sequencer;
+      ::memcpy(context, other.context, CtxSize);
+      ::memcpy(c_digest, other.c_digest, HashSize);
     }
 
-    log_entry(log_entry&& other) {
-	    sequencer = other.sequencer;
-	    ::memcpy(context, other.context, CtxSize);
-	    ::memcpy(c_digest, other.c_digest, HashSize);
+    log_entry(log_entry &&other) {
+      sequencer = other.sequencer;
+      ::memcpy(context, other.context, CtxSize);
+      ::memcpy(c_digest, other.c_digest, HashSize);
     }
 
-    log_entry operator=(const log_entry& other) {
-	    sequencer = other.sequencer;
-	    ::memcpy(context, other.context, CtxSize);
-	    ::memcpy(c_digest, other.c_digest, HashSize);
-	    return *(this);
+    log_entry operator=(const log_entry &other) {
+      sequencer = other.sequencer;
+      ::memcpy(context, other.context, CtxSize);
+      ::memcpy(c_digest, other.c_digest, HashSize);
+      return *(this);
     }
-    log_entry operator=(log_entry&& other) {
-	    sequencer = other.sequencer;
-	    ::memcpy(context, other.context, CtxSize);
-	    ::memcpy(c_digest, other.c_digest, HashSize);
-	    return *(this);
+    log_entry operator=(log_entry &&other) {
+      sequencer = other.sequencer;
+      ::memcpy(context, other.context, CtxSize);
+      ::memcpy(c_digest, other.c_digest, HashSize);
+      return *(this);
     }
   };
 
@@ -80,32 +81,30 @@ public:
   }
 
   struct lookup_attestation {
-	  enum {UNASSIGNED, FORGOTTEN, REGULAR};
-	  uint32_t w;
-	  struct log_entry;
-	  lookup_attestation(int mode) { w = mode; };
-	  
+    enum { UNASSIGNED, FORGOTTEN, REGULAR };
+    uint32_t w;
+    struct log_entry;
+    lookup_attestation(int mode) { w = mode; };
   };
 
   lookup_attestation lookup(size_t idx, uint64_t nonce) {
-	  if (idx > get_log_size()) {
-		  return lookup_attestation(lookup_attestation::UNASSAGNED);
-	  }
-	  if (idx < 0) {
-		  return lookup_attestation(lookup_attestation::FORGOTTEN);
-	  }
+    if (idx > get_log_size()) {
+      return lookup_attestation(lookup_attestation::UNASSAGNED);
+    }
+    if (idx < 0) {
+      return lookup_attestation(lookup_attestation::FORGOTTEN);
+    }
 
-	lookup_attestation ret_a(lookup_attestation::REGULAR);
+    lookup_attestation ret_a(lookup_attestation::REGULAR);
     auto entry_ptr = get_entry_at(idx);
     fmt::print("idx={}\t", idx);
     ::memcpy(&(ret_a.sequencer), entry_ptr, sizeof(log_entry::sequencer));
     fmt::print("sequencer={}\n", ret_a.sequencer);
-    auto* ctx_ptr = entry_ptr + sizeof(log_entry::sequencer);
+    auto *ctx_ptr = entry_ptr + sizeof(log_entry::sequencer);
     ::memcpy(ret_a.context, ctx_ptr, sizeof(log_entry::CtxSize));
     ctx_ptr += log_entry::CtxSize;
     ::memcpy(ret_a.digest, ctx_ptr, sizeof(log_entry::HashSize));
     return ret_a;
-
   }
   bool append(const log_entry &entry) {
     if (cur_idx >= nb_max_entries) {
