@@ -62,7 +62,7 @@ public:
     ::memcpy(tmp.get() + offset, to_be_added.context, len);
     offset += log_entry::CtxSize;
 
-    ::memcpy(tmp.get() + offset, get_tail_digest(), log_entry::CtxSize);
+    ::memcpy(tmp.get() + offset, get_tail_digest(), log_entry::HashSize);
 
     auto [c_digest, d_len] = hmac_sha256(tmp.get(), tmp_sz);
     if (d_len != log_entry::HashSize) {
@@ -74,6 +74,7 @@ public:
   }
 
   void print_entry_at(size_t idx, char *&ctx_ptr, size_t &ctx_sz) {
+#ifdef DEBUG_PRINT
     auto entry_ptr = get_entry_at(idx);
     fmt::print("idx={}\t", idx);
     uint32_t sequencer;
@@ -87,6 +88,7 @@ public:
                            (ctx_ptr + log_entry::CtxSize))[i]);
     }
     fmt::print("\n");
+#endif
   }
 
   trusted_log() = delete;
@@ -117,14 +119,14 @@ public:
   struct lookup_attestation {
     enum { UNASSIGNED, FORGOTTEN, REGULAR };
     uint32_t w;
-    struct log_entry;
+    struct log_entry e;
     lookup_attestation(int mode) { w = mode; };
   };
 
   lookup_attestation a2m_lookup(size_t idx, uint64_t nonce) {
     // TODO: use nonce correctly
     if (idx > get_log_size()) {
-      return lookup_attestation(lookup_attestation::UNASSAGNED);
+      return lookup_attestation(lookup_attestation::UNASSIGNED);
     }
     if (idx < 0) {
       return lookup_attestation(lookup_attestation::FORGOTTEN);
@@ -132,13 +134,17 @@ public:
 
     lookup_attestation ret_a(lookup_attestation::REGULAR);
     auto entry_ptr = get_entry_at(idx);
+#ifdef DEBUG_PRINT
     fmt::print("idx={}\t", idx);
-    ::memcpy(&(ret_a.sequencer), entry_ptr, sizeof(log_entry::sequencer));
+#endif
+    ::memcpy(&(ret_a.e.sequencer), entry_ptr, sizeof(log_entry::sequencer));
+#ifdef DEBUG_PRINT
     fmt::print("sequencer={}\n", ret_a.sequencer);
+#endif
     auto *ctx_ptr = entry_ptr + sizeof(log_entry::sequencer);
-    ::memcpy(ret_a.context, ctx_ptr, sizeof(log_entry::CtxSize));
+    ::memcpy(ret_a.e.context, ctx_ptr, sizeof(log_entry::CtxSize));
     ctx_ptr += log_entry::CtxSize;
-    ::memcpy(ret_a.digest, ctx_ptr, sizeof(log_entry::HashSize));
+    ::memcpy(ret_a.e.c_digest, ctx_ptr, sizeof(log_entry::HashSize));
     return ret_a;
   }
 
@@ -213,6 +219,7 @@ private:
     ::memcpy(pos + offset, entry.context, log_entry::CtxSize);
     offset += log_entry::CtxSize;
     ::memcpy(pos + offset, entry.c_digest, log_entry::HashSize);
+#ifdef DEBUG_PRINT
     fmt::print("[{}] pos+offset=", __func__);
     for (auto i = 0ULL; i < log_entry::HashSize; i++) {
       fmt::print("{}", reinterpret_cast<unsigned char *>(pos + offset)[i]);
@@ -224,5 +231,6 @@ private:
                  reinterpret_cast<const unsigned char *>(entry.c_digest)[i]);
     }
     fmt::print("\n");
+#endif
   }
 };
