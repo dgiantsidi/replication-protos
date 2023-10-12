@@ -49,3 +49,9 @@ We pin E810-port to DPDK-driver (igb_uio or vfio-pci).
 	with 
 
 	`#define ICE_DFLT_PKG_FILE "${linux-firmware}/intel/ice/ddp/ice-1.3.26.0.pkg"`
+
+
+## BIOS access in ryan.i
+```
+https://172.24.90.7/restgui/index.html?69691754c25fcef72ae5a039db28f841#/
+```
