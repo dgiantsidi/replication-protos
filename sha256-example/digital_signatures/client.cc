@@ -72,7 +72,7 @@ void client(int port, std::unique_ptr<char[]> buf, size_t size) {
 auto main(int argc, char *argv[]) -> int {
   // NOLINTNEXTLINE(concurrency-mt-unsafe)
   auto port = 18000;
-  auto sz = 64;
+  auto sz = 32;
  // fmt::print("[{}] addr={}\n", __func__, hostip->h_addr);
   std::unique_ptr<char[]> buf = std::make_unique<char[]>(sz);
   //  ::memset(buf.get(), '1', sz);
