@@ -1,5 +1,5 @@
 // #include "signed_msg.h"
-#include "botan_enc_lib.h"
+// #include "botan_enc_lib.h"
 #include "enc_lib.h"
 #include "openssl/hmac.h"
 #include <chrono>
@@ -14,7 +14,7 @@
 #include <openssl/ssl.h>
 
 DEFINE_uint64(msg_size, 64, "Size of request message in bytes");
-DEFINE_uint64(reps, 10000, "repetitions");
+DEFINE_uint64(reps, 1e6, "repetitions");
 
 std::vector<unsigned char> hmac_sha256(const unsigned char *data, size_t sz) {
   std::string key = {
@@ -104,26 +104,30 @@ int main(int args, char *argv[]) {
 
   std::string enc_str;
   auto aesgcm_enc_per = [&](char *plainText, size_t msg_size) -> bool {
+#if 0
     enc_str = EncryptString(
         std::string(reinterpret_cast<const char *>(plainText), msg_size), key,
         iv);
     if (enc_str.size() > 0)
       return true;
     return false;
+#endif
   };
   std::string dec_str;
   auto aesgcm_dec_per = [&]() -> bool {
+#if 0
     dec_str = DecryptString(enc_str, key, iv);
     if (dec_str !=
         std::string(reinterpret_cast<const char *>(plainText), msg_size))
       return false;
     return true;
+#endif
   };
 
   auto start1 = std::chrono::high_resolution_clock::now();
   int encrypted_length = -1;
   for (auto i = 0ULL; i < reps; i++) {
-    encrypted_length = sign_per(reinterpret_cast<char *>(plainText), msg_size);
+ //   encrypted_length = sign_per(reinterpret_cast<char *>(plainText), msg_size);
   }
   auto end1 = std::chrono::high_resolution_clock::now();
   for (auto i = 0; i < encrypted_length; i++) {
@@ -133,8 +137,8 @@ int main(int args, char *argv[]) {
   auto start2 = std::chrono::high_resolution_clock::now();
   bool res = true;
   for (auto i = 0ULL; i < reps; i++) {
-    res &= dec_per(reinterpret_cast<char *>(plainText), msg_size,
-                   encrypted_length);
+   //  res &= dec_per(reinterpret_cast<char *>(plainText), msg_size,
+   //                encrypted_length);
   }
   auto end2 = std::chrono::high_resolution_clock::now();
 
@@ -147,13 +151,14 @@ int main(int args, char *argv[]) {
 
   auto start4 = std::chrono::high_resolution_clock::now();
   for (auto i = 0ULL; i < reps; i++) {
-    res &= aesgcm_enc_per(reinterpret_cast<char *>(plainText), msg_size);
+
+//    res &= aesgcm_enc_per(reinterpret_cast<char *>(plainText), msg_size);
   }
   auto end4 = std::chrono::high_resolution_clock::now();
 
   auto start5 = std::chrono::high_resolution_clock::now();
   for (auto i = 0ULL; i < reps; i++) {
-    res &= aesgcm_dec_per();
+  //  res &= aesgcm_dec_per();
   }
   auto end5 = std::chrono::high_resolution_clock::now();
 
@@ -186,7 +191,7 @@ int main(int args, char *argv[]) {
   std::cout << "elapsed time: " << avg_duration2 << " us for " << reps
             << " rsa+sha256 (verify)" << std::endl;
   std::cout << "elapsed time: " << avg_duration3 << " us for " << reps
-            << " hmac-sha256" << std::endl;
+            << " hmac-sha256\t latency="<< (avg_duration3*1.0/reps*1.0) << " us" << std::endl;
   std::cout << "elapsed time: " << avg_duration4 << " us for " << reps
             << " aes-gcm (enc)" << std::endl;
   std::cout << "elapsed time: " << avg_duration5 << " us for " << reps
