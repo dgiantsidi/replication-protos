@@ -133,7 +133,7 @@ auto main(int argc, char *argv[]) -> int {
 			int op = buffer.get()[bytecount - 1];
 			switch (op) {
 				case p::enc: {
-		if (cnt % 1000 == 0)
+		if (cnt % 5000 == 0)
 			fmt::print("{}\n", cnt);
 		cnt++;
 						     	auto res = hmac_sha256(reinterpret_cast<uint8_t*>(buffer.get()), bytecount);
