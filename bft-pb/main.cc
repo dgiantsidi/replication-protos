@@ -1,5 +1,6 @@
 #include "common.h"
-#include "crypto/hmac_lib.h"
+#include "tnic_mock_api/api.h"
+//#include "crypto/hmac_lib.h"
 #include "msg.h"
 #include "util/numautils.h"
 #include <chrono>
@@ -122,7 +123,9 @@ static void cont_func_prp(void *context, void *t) {
   auto *response = tag->resp.buf;
   auto buf_sz = tag->resp.get_data_size();
   // validate (TNIC)
-  auto [calc_mac, len] = hmac_sha256(response, (buf_sz - _hmac_size));
+  auto [calc_mac, len] =
+      tnic_api::native_get_attestation(response, (buf_sz - _hmac_size));
+  // auto [calc_mac, len] = hmac_sha256(response, (buf_sz - _hmac_size));
   if (::memcmp(response + (buf_sz - _hmac_size), calc_mac.data(), len) != 0) {
     fmt::print("[{}] error on HMAC validation\n", __PRETTY_FUNCTION__);
   }
@@ -176,8 +179,12 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
                kMsgSize * msg_manager::batch_count);
 
       // sign before transmission
+      auto [mac, len] = tnic_api::native_get_attestation(
+          buffs->req.buf, kMsgSize * msg_manager::batch_count);
+      /*
       auto [mac, len] =
           hmac_sha256(buffs->req.buf, kMsgSize * msg_manager::batch_count);
+          */
       if (len != _hmac_size) {
         fmt::print("[{}] len ({}) != _hmac_size ({})\n", __PRETTY_FUNCTION__,
                    len, _hmac_size);
@@ -385,7 +392,9 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
                __PRETTY_FUNCTION__, buf_sz, kMsgSize);
   }
   // validate before execution (TNIC)
-  auto [calc_mac, len] = hmac_sha256(recv_data, (buf_sz - _hmac_size));
+  auto [calc_mac, len] =
+      tnic_api::native_get_attestation(recv_data, (buf_sz - _hmac_size));
+  // auto [calc_mac, len] = hmac_sha256(recv_data, (buf_sz - _hmac_size));
   if (::memcmp(recv_data + (buf_sz - _hmac_size), calc_mac.data(), len) != 0) {
     fmt::print("[{}] error on HMAC validation\n", __PRETTY_FUNCTION__);
   }
@@ -412,7 +421,9 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   ::memcpy(&ack.output, &(ack.cmt), sizeof(uint32_t));
   ::memcpy(&ack.ack, &(ok), sizeof(bool));
   // HMAC-state here
-  auto [state_mac, sz] = hmac_sha256(ack.state, ack_msg::HashSize);
+  auto [state_mac, sz] =
+      tnic_api::native_get_attestation(ack.state, ack_msg::HashSize);
+  // auto [state_mac, sz] = hmac_sha256(ack.state, ack_msg::HashSize);
   ::memcpy(ack.state, state_mac.data(), ack_msg::HashSize);
   if (ack.sender == 1) {
     ::memcpy(ctx->metadata->f1_last_state, state_mac.data(), ack_msg::HashSize);
@@ -435,7 +446,9 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   // sign message before transmission
   ctx->rpc->resize_msg_buffer(&resp, f_get_msg_buf_sz() + _hmac_size);
   memcpy_ack_into_buffer(ack, resp.buf);
-  auto [mac, hlen] = hmac_sha256(resp.buf, f_get_msg_buf_sz());
+  auto [mac, hlen] =
+      tnic_api::native_get_attestation(resp.buf, f_get_msg_buf_sz());
+  // auto [mac, hlen] = hmac_sha256(resp.buf, f_get_msg_buf_sz());
   if (hlen != _hmac_size) {
     fmt::print("[{}] len ({}) != _hmac_size ({})\n", __PRETTY_FUNCTION__, hlen,
                _hmac_size);
