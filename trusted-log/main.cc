@@ -1,7 +1,8 @@
 #include "common.h"
-#include "crypto/hmac_lib.h"
+// #include "crypto/hmac_lib.h"
 #include "log.h"
 #include "msg.h"
+#include "tnic_mock_api/api.h"
 #include "util/numautils.h"
 #include <chrono>
 #include <cstring>
@@ -105,9 +106,14 @@ public:
           std::make_unique<char[]>(sizeof(trusted_log<LogEntry>::log_entry));
       tlog->serialize_entry(prev_entry.get(), prev_idx);
 
+      auto [c_digest, len] = tnic_api::native_get_attestation(
+          reinterpret_cast<uint8_t *>(prev_entry.get()),
+          sizeof(trusted_log<LogEntry>::log_entry));
+      /*
       auto [c_digest, len] =
           hmac_sha256(reinterpret_cast<uint8_t *>(prev_entry.get()),
                       sizeof(trusted_log<LogEntry>::log_entry));
+        */
       char *ctx_ptr = nullptr;
       size_t ctx_sz = 0;
       tlog->print_entry_at(cur_idx, ctx_ptr, ctx_sz);
@@ -136,9 +142,14 @@ public:
           std::make_unique<char[]>(sizeof(trusted_log<LogEntry>::log_entry));
       tlog->serialize_tail(tail_serialized.get());
       // TODO: digest of tail + current entry
+      auto [c_digest, len] = tnic_api::native_get_attestation(
+          reinterpret_cast<uint8_t *>(tail_serialized.get()),
+          sizeof(trusted_log<LogEntry>::log_entry));
+      /*
       auto [c_digest, len] =
           hmac_sha256(reinterpret_cast<uint8_t *>(tail_serialized.get()),
                       sizeof(trusted_log<LogEntry>::log_entry));
+        */
       trusted_log<LogEntry>::log_entry e;
       e.sequencer = tlog->get_log_size();
       // c_digest is a vector<char>
@@ -214,7 +225,9 @@ static void cont_func_prp(void *context, void *t) {
   auto *response = tag->resp.buf;
   auto buf_sz = tag->resp.get_data_size();
   // validate (TNIC)
-  auto [calc_mac, len] = hmac_sha256(response, (buf_sz - _hmac_size));
+  auto [calc_mac, len] =
+      tnic_api::native_get_attestation(response, (buf_sz - _hmac_size));
+  // auto [calc_mac, len] = hmac_sha256(response, (buf_sz - _hmac_size));
   if (::memcmp(response + (buf_sz - _hmac_size), calc_mac.data(), len) != 0) {
     fmt::print("[{}] error on HMAC validation\n", __PRETTY_FUNCTION__);
   }
@@ -287,8 +300,12 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
                kMsgSize * msg_manager::batch_count);
 
       // sign before transmission
+      auto [mac, len] = tnic_api::native_get_attestation(
+          buffs->req.buf, kMsgSize * msg_manager::batch_count);
+      /*
       auto [mac, len] =
           hmac_sha256(buffs->req.buf, kMsgSize * msg_manager::batch_count);
+          */
       if (len != _hmac_size) {
         fmt::print("[{}] len ({}) != _hmac_size ({})\n", __PRETTY_FUNCTION__,
                    len, _hmac_size);
@@ -318,8 +335,12 @@ void flash_batcher(const std::vector<int> &dest_ids, app_context *ctx) {
 
     ::memcpy(buffs->req.buf, ctx->batcher->serialize_batch(),
              kMsgSize * ctx->batcher->cur_idx);
-    auto [mac, len] =
-        hmac_sha256(buffs->req.buf, kMsgSize * ctx->batcher->cur_idx);
+    auto [mac, len] = tnic_api::native_get_attestation(
+        buffs->req.buf, kMsgSize * ctx->batcher->cur_idx);
+    /*
+  auto [mac, len] =
+      hmac_sha256(buffs->req.buf, kMsgSize * ctx->batcher->cur_idx);
+      */
     if (len != _hmac_size) {
       fmt::print("[{}] len ({}) != _hmac_size ({})\n", __PRETTY_FUNCTION__, len,
                  _hmac_size);
@@ -580,7 +601,9 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   }
 
   // validate before execution (TNIC)
-  auto [calc_mac, len] = hmac_sha256(recv_data, (buf_sz - _hmac_size));
+  auto [calc_mac, len] =
+      tnic_api::native_get_attestation(recv_data, (buf_sz - _hmac_size));
+  // auto [calc_mac, len] = hmac_sha256(recv_data, (buf_sz - _hmac_size));
   if (::memcmp(recv_data + (buf_sz - _hmac_size), calc_mac.data(), len) != 0) {
     fmt::print("[{}] error on HMAC validation\n", __PRETTY_FUNCTION__);
   }
@@ -620,7 +643,9 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   ::memcpy(&ack.cmd, kDefaultCmd, p_msg::CmdSize);
 
   // HMAC-state here (TNIC but local, no sending)
-  auto [state_mac, sz] = hmac_sha256(ack.state, ack_msg::HashSize);
+  auto [state_mac, sz] =
+      tnic_api::native_get_attestation(ack.state, ack_msg::HashSize);
+  //  auto [state_mac, sz] = hmac_sha256(ack.state, ack_msg::HashSize);
   ::memcpy(ack.state, state_mac.data(), ack_msg::HashSize);
   if (ack.sender == 1) {
     ::memcpy(ctx->metadata->f1_last_state, state_mac.data(), ack_msg::HashSize);
@@ -643,7 +668,9 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   // sign message before transmission
   ctx->rpc->resize_msg_buffer(&resp, f_get_msg_buf_sz() + _hmac_size);
   memcpy_ack_into_buffer(ack, resp.buf);
-  auto [mac, hlen] = hmac_sha256(resp.buf, f_get_msg_buf_sz());
+  auto [mac, hlen] =
+      tnic_api::native_get_attestation(resp.buf, f_get_msg_buf_sz());
+  // auto [mac, hlen] = hmac_sha256(resp.buf, f_get_msg_buf_sz());
   if (hlen != _hmac_size) {
     fmt::print("[{}] len ({}) != _hmac_size ({})\n", __PRETTY_FUNCTION__, hlen,
                _hmac_size);
