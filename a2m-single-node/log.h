@@ -1,5 +1,5 @@
 #pragma once
-#include "hmac_lib.h"
+#include "tnic_mock_api/api.h"
 #include <fmt/printf.h>
 
 template <size_t CTX_SIZE> class trusted_log {
@@ -64,7 +64,8 @@ public:
 
     ::memcpy(tmp.get() + offset, get_tail_digest(), log_entry::HashSize);
 
-    auto [c_digest, d_len] = hmac_sha256(tmp.get(), tmp_sz);
+   // auto [c_digest, d_len] = hmac_sha256(tmp.get(), tmp_sz);
+   auto [c_digest, d_len] = tnic_api::native_get_attestation(tmp.get(), tmp_sz);
     if (d_len != log_entry::HashSize) {
       fmt::print("[{}] Error #1 d_len != log_entry::HashSize\n",
                  __PRETTY_FUNCTION__);
