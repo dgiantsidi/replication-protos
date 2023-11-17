@@ -11,7 +11,14 @@ public:
   }
 
   static std::tuple<std::vector<unsigned char>, size_t>
-  TEE_get_attestation(const unsigned char *data, size_t sz) {
+  SGX_get_attestation(const unsigned char *data, size_t sz) {
+    using namespace std::literals::chrono_literals;
+    std::this_thread::sleep_for(50us); //@dimitra: from microbenchmarking
+
+    return hmac_sha256(data, sz);
+  }
+
+  AMDSEV_get_attestation(const unsigned char *data, size_t sz) {
     using namespace std::literals::chrono_literals;
     std::this_thread::sleep_for(50us); //@dimitra: from microbenchmarking
 
