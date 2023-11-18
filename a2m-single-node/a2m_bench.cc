@@ -22,12 +22,17 @@ int main(void *) {
     auto start = std::chrono::steady_clock::now();
     for (auto i = 0ULL; i < iterations; i++) {
       log->a2m_append(data);
+      if (i % 200000 == 0)
+        fmt::print("appends={}\n", i);
     }
     auto end = std::chrono::steady_clock::now();
+    auto duration2 =
+        std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     const std::chrono::duration<double> elapsed_seconds{end - start};
-    fmt::print("[{}] elapsed={} for {} iterations (avg_lat={} sec)\n",
-               __PRETTY_FUNCTION__, elapsed_seconds.count(), iterations,
-               (elapsed_seconds.count() * 1.0) / (iterations * 1.0));
+    fmt::print("[{}] elapsed={}/{} for {} iterations (avg_lat={} sec\t {}us)\n",
+               __PRETTY_FUNCTION__, elapsed_seconds.count(), duration2.count(),
+               iterations, (elapsed_seconds.count() * 1.0) / (iterations * 1.0),
+               ((duration2.count() * 1.0) / (iterations * 1.0)));
   }
 
   {
@@ -38,12 +43,17 @@ int main(void *) {
         fmt::print("[{}] ret.e.sequencer={} != i={}\n", __PRETTY_FUNCTION__,
                    ret.e.sequencer, i);
       }
+      if (i % 200000 == 0)
+        fmt::print("lookups={}\n", i);
     }
     auto end = std::chrono::steady_clock::now();
+    auto duration2 =
+        std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     const std::chrono::duration<double> elapsed_seconds{end - start};
-    fmt::print("[{}] elapsed={} for {} iterations (avg_lat={} sec)\n",
+    fmt::print("[{}] elapsed={} for {} iterations (avg_lat={} sec\t {}us)\n",
                __PRETTY_FUNCTION__, elapsed_seconds.count(), iterations,
-               (elapsed_seconds.count() * 1.0) / (iterations * 1.0));
+               (elapsed_seconds.count() * 1.0) / (iterations * 1.0),
+               (duration2.count() * 1.0) / (iterations * 1.0));
   }
   return 0;
 }

@@ -2,6 +2,8 @@
 #include "tnic_mock_api/api.h"
 #include <fmt/printf.h>
 
+std::string version = "";
+
 template <size_t CTX_SIZE> class trusted_log {
 public:
   struct log_entry {
@@ -64,8 +66,19 @@ public:
 
     ::memcpy(tmp.get() + offset, get_tail_digest(), log_entry::HashSize);
 
-   // auto [c_digest, d_len] = hmac_sha256(tmp.get(), tmp_sz);
-   auto [c_digest, d_len] = tnic_api::native_get_attestation(tmp.get(), tmp_sz);
+    // auto [c_digest, d_len] = hmac_sha256(tmp.get(), tmp_sz);
+#ifdef FPGA
+#warning "FPGA-version is evaluated"
+    auto [c_digest, d_len] = tnic_api::FPGA_get_attestation(tmp.get(), tmp_sz);
+#elif AMD
+#warning "AMD-version is evaluated"
+    auto [c_digest, d_len] =
+        tnic_api::AMDSEV_get_attestation(tmp.get(), tmp_sz);
+#else
+#warning "Native or SGX-based versions are evaluated"
+    auto [c_digest, d_len] =
+        tnic_api::native_get_attestation(tmp.get(), tmp_sz);
+#endif
     if (d_len != log_entry::HashSize) {
       fmt::print("[{}] Error #1 d_len != log_entry::HashSize\n",
                  __PRETTY_FUNCTION__);
@@ -99,21 +112,37 @@ public:
   trusted_log &operator=(trusted_log &&other) = delete;
 
   trusted_log(trusted_log &&other) : trusted_log(other.log_size) {
+#ifdef FPGA
+#warning "FPGA-version is evaluated"
+    version = "FPGA";
+#elif AMD
+    version = "AMD";
+#else
+    version = "SGX";
+#endif
     this->mem_log = std::move(other.mem_log);
     this->cur_idx = other.cur_idx;
     this->tail = other.tail;
-    fmt::print("[{}] cur_idx={}, nb_max_entries={}, mem_log={}\n",
-               __PRETTY_FUNCTION__, cur_idx, nb_max_entries,
+    fmt::print("[{} w/ version={}] cur_idx={}, nb_max_entries={}, mem_log={}\n",
+               __PRETTY_FUNCTION__, version, cur_idx, nb_max_entries,
                reinterpret_cast<uintptr_t>(mem_log.get()));
   }
 
   trusted_log(size_t log_sz)
       : nb_max_entries(log_sz / sizeof(log_entry)), cur_idx(0),
         log_size(log_sz), tail(nullptr) {
+#ifdef FPGA
+#warning "FPGA-version is evaluated"
+    version = "FPGA";
+#elif AMD
+    version = "AMD";
+#else
+    version = "SGX";
+#endif
     mem_log = std::make_unique<char[]>(nb_max_entries * sizeof(log_entry));
     tail = mem_log.get();
-    fmt::print("[{}] cur_idx={}, nb_max_entries={}, mem_log={}\n",
-               __PRETTY_FUNCTION__, cur_idx, nb_max_entries,
+    fmt::print("[{} w/ version={}] cur_idx={}, nb_max_entries={}, mem_log={}\n",
+               __PRETTY_FUNCTION__, version, cur_idx, nb_max_entries,
                reinterpret_cast<uintptr_t>(mem_log.get()));
   }
 
