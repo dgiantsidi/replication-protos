@@ -95,6 +95,7 @@ public:
 
   rpc_handle *rpc = nullptr;
   int node_id = 0, thread_id = 0;
+  int count_replies = 0;
   int instance_id = 0; /* instance id used to create the rpcs */
   msg_manager *batcher = nullptr;
   protocol_metadata *metadata = nullptr;
@@ -118,13 +119,33 @@ static void cont_func_prp(void *context, void *t) {
     using namespace std::chrono_literals;
     std::this_thread::sleep_for(10000ms);
   }
+  ctx->count_replies++;
   auto *tag = static_cast<rpc_buffs *>(t);
 
   auto *response = tag->resp.buf;
   auto buf_sz = tag->resp.get_data_size();
   // validate (TNIC)
+#ifdef FPGA
+#warning "FPGA-version is evaluated"
+  auto [calc_mac, len] =
+      tnic_api::FPGA_get_attestation(response, (buf_sz - _hmac_size));
+#elif AMD
+#warning "AMD-version is evaluated"
+  auto [calc_mac, len] =
+      tnic_api::AMDSEV_get_attestation(response, (buf_sz - _hmac_size));
+#elif SGX
+#warning "SGX-based versions is evaluated"
+  auto [calc_mac, len] =
+      tnic_api::SGX_get_attestation(response, (buf_sz - _hmac_size));
+#else
+#warning "Native version is evaluated"
   auto [calc_mac, len] =
       tnic_api::native_get_attestation(response, (buf_sz - _hmac_size));
+#endif
+#if 0
+  auto [calc_mac, len] =
+      tnic_api::native_get_attestation(response, (buf_sz - _hmac_size));
+#endif
   // auto [calc_mac, len] = hmac_sha256(response, (buf_sz - _hmac_size));
   if (::memcmp(response + (buf_sz - _hmac_size), calc_mac.data(), len) != 0) {
     fmt::print("[{}] error on HMAC validation\n", __PRETTY_FUNCTION__);
@@ -179,8 +200,27 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
                kMsgSize * msg_manager::batch_count);
 
       // sign before transmission
+#ifdef FPGA
+#warning "FPGA-version is evaluated"
+      auto [mac, len] = tnic_api::FPGA_get_attestation(
+          buffs->req.buf, kMsgSize * msg_manager::batch_count);
+#elif AMD
+#warning "AMD-version is evaluated"
+      auto [mac, len] = tnic_api::AMDSEV_get_attestation(
+          buffs->req.buf, kMsgSize * msg_manager::batch_count);
+#elif SGX
+#warning "SGX-based version is evaluated"
+      auto [mac, len] = tnic_api::SGX_get_attestation(
+          buffs->req.buf, kMsgSize * msg_manager::batch_count);
+#else
+#warning "Native version is evaluated"
       auto [mac, len] = tnic_api::native_get_attestation(
           buffs->req.buf, kMsgSize * msg_manager::batch_count);
+#endif
+#if 0
+      auto [mac, len] = tnic_api::native_get_attestation(
+          buffs->req.buf, kMsgSize * msg_manager::batch_count);
+#endif
       /*
       auto [mac, len] =
           hmac_sha256(buffs->req.buf, kMsgSize * msg_manager::batch_count);
@@ -268,14 +308,29 @@ void leader_func(app_context *ctx,
     followers.push_back(std::get<0>(uri));
   }
   ctx->rpc->run_event_loop(100);
+  auto start = std::chrono::steady_clock::now();
+  int iterations = FLAGS_reqs_num;
   for (auto i = 0ULL; i < FLAGS_reqs_num; i++) {
     send_req(i, followers, ctx);
     poll(ctx);
   }
   flash_batcher(followers, ctx);
   fmt::print("{} polls until the end ...\n", __func__);
-  for (;;)
+  for (;;) {
     ctx->rpc->run_event_loop_once();
+    if (ctx->count_replies * msg_manager::batch_count == iterations * 2)
+      break;
+  }
+  fmt::print("[{}] ctx->count_replies={}\n", __PRETTY_FUNCTION__,
+             ctx->count_replies);
+  auto end = std::chrono::steady_clock::now();
+  auto duration2 =
+      std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  const std::chrono::duration<double> elapsed_seconds{end - start};
+  fmt::print("[{}] elapsed={}/{} for {} iterations (avg_lat={} sec\t {}us)\n",
+             __PRETTY_FUNCTION__, elapsed_seconds.count(), duration2.count(),
+             iterations, (elapsed_seconds.count() * 1.0) / (iterations * 1.0),
+             ((duration2.count() * 1.0) / (iterations * 1.0)));
 }
 
 void follower_func(app_context *ctx, const std::string &uri) {
@@ -316,6 +371,7 @@ void proto_func(size_t thread_id, erpc::Nexus *nexus) {
     follower_func(ctx, std::string{kdonna});
   }
 
+  delete ctx;
   fmt::print("[{}]\tthread_id={} exits.\n", __PRETTY_FUNCTION__, thread_id);
 }
 
@@ -392,8 +448,27 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
                __PRETTY_FUNCTION__, buf_sz, kMsgSize);
   }
   // validate before execution (TNIC)
+#ifdef FPGA
+#warning "FPGA-version is evaluated"
+  auto [calc_mac, len] =
+      tnic_api::FPGA_get_attestation(recv_data, (buf_sz - _hmac_size));
+#elif AMD
+#warning "AMD-version is evaluated"
+  auto [calc_mac, len] =
+      tnic_api::AMDSEV_get_attestation(recv_data, (buf_sz - _hmac_size));
+#elif SGX
+#warning "SGX-based version is evaluated"
+  auto [calc_mac, len] =
+      tnic_api::SGX_get_attestation(recv_data, (buf_sz - _hmac_size));
+#else
+#warning "Native version is evaluated"
   auto [calc_mac, len] =
       tnic_api::native_get_attestation(recv_data, (buf_sz - _hmac_size));
+#endif
+#if 0
+  auto [calc_mac, len] =
+      tnic_api::native_get_attestation(recv_data, (buf_sz - _hmac_size));
+#endif
   // auto [calc_mac, len] = hmac_sha256(recv_data, (buf_sz - _hmac_size));
   if (::memcmp(recv_data + (buf_sz - _hmac_size), calc_mac.data(), len) != 0) {
     fmt::print("[{}] error on HMAC validation\n", __PRETTY_FUNCTION__);
@@ -421,8 +496,27 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   ::memcpy(&ack.output, &(ack.cmt), sizeof(uint32_t));
   ::memcpy(&ack.ack, &(ok), sizeof(bool));
   // HMAC-state here
+#ifdef FPGA
+#warning "FPGA-version is evaluated"
+  auto [state_mac, sz] =
+      tnic_api::FPGA_get_attestation(ack.state, ack_msg::HashSize);
+#elif AMD
+#warning "AMD-version is evaluated"
+  auto [state_mac, sz] =
+      tnic_api::AMDSEV_get_attestation(ack.state, ack_msg::HashSize);
+#elif SGX
+#warning "SGX-based version is evaluated"
+  auto [state_mac, sz] =
+      tnic_api::SGX_get_attestation(ack.state, ack_msg::HashSize);
+#else
+#warning "Native version is evaluated"
   auto [state_mac, sz] =
       tnic_api::native_get_attestation(ack.state, ack_msg::HashSize);
+#endif
+#if 0
+  auto [state_mac, sz] =
+      tnic_api::native_get_attestation(ack.state, ack_msg::HashSize);
+#endif
   // auto [state_mac, sz] = hmac_sha256(ack.state, ack_msg::HashSize);
   ::memcpy(ack.state, state_mac.data(), ack_msg::HashSize);
   if (ack.sender == 1) {
@@ -446,8 +540,27 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   // sign message before transmission
   ctx->rpc->resize_msg_buffer(&resp, f_get_msg_buf_sz() + _hmac_size);
   memcpy_ack_into_buffer(ack, resp.buf);
+#ifdef FPGA
+#warning "FPGA-version is evaluated"
+  auto [mac, hlen] =
+      tnic_api::FPGA_get_attestation(resp.buf, f_get_msg_buf_sz());
+#elif AMD
+#warning "AMD-version is evaluated"
+  auto [mac, hlen] =
+      tnic_api::AMDSEV_get_attestation(resp.buf, f_get_msg_buf_sz());
+#elif SGX
+#warning "SGX-based version is evaluated"
+  auto [mac, hlen] =
+      tnic_api::SGX_get_attestation(resp.buf, f_get_msg_buf_sz());
+#else
+#warning "Native version is evaluated"
   auto [mac, hlen] =
       tnic_api::native_get_attestation(resp.buf, f_get_msg_buf_sz());
+#endif
+#if 0
+  auto [mac, hlen] =
+      tnic_api::native_get_attestation(resp.buf, f_get_msg_buf_sz());
+#endif
   // auto [mac, hlen] = hmac_sha256(resp.buf, f_get_msg_buf_sz());
   if (hlen != _hmac_size) {
     fmt::print("[{}] len ({}) != _hmac_size ({})\n", __PRETTY_FUNCTION__, hlen,
