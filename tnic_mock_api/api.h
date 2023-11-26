@@ -22,7 +22,14 @@ public:
   native_get_attestation(const unsigned char *data, size_t sz) {
     using namespace std::chrono_literals;
     //			std::this_thread::sleep_for(10us); //@dimitra: from
-    //microbenchmarking
+    // microbenchmarking
+#if 0
+    constexpr int native_delay_in_us = 10;
+
+    auto start = std::chrono::steady_clock::now();
+    while (time_elapsed(start) < native_delay_in_us) {
+    }
+#endif
     return hmac_sha256(data, sz);
   }
 
@@ -57,7 +64,7 @@ public:
 
   static std::tuple<std::vector<unsigned char>, size_t>
   FPGA_get_attestation(const unsigned char *data, size_t sz) {
-    constexpr int fpga_delay_in_us = 5;
+    constexpr int fpga_delay_in_us = 7;
 
     using namespace std::literals::chrono_literals;
     auto start = std::chrono::steady_clock::now();
