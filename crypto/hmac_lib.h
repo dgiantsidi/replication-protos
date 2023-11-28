@@ -4,6 +4,7 @@
 #include <vector>
 #include <cstring>
 #include <iostream>
+#include <memory>
 
 static constexpr size_t _hmac_size = EVP_MAX_MD_SIZE/2;
 std::tuple<std::vector<unsigned char>, size_t> hmac_sha256(const unsigned char *data, size_t sz) {

@@ -10,7 +10,8 @@
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 #include <openssl/ssl.h>
-constexpr int signature_size = 256;
+#include <memory>
+//constexpr int signature_size = 256;
 char privateKey512[] =
     "-----BEGIN RSA PRIVATE KEY-----"
     "MIIBOgIBAAJBAILofW2oDPrWg87bwc9KK6uNKIP40GhEsF5P5MXWnRxKZW8mudih\n"
