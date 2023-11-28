@@ -21,7 +21,7 @@ DEFINE_uint64(req_size, 64, "Size of request message in bytes");
 DEFINE_uint64(resp_size, 32, "Size of response message in bytes");
 DEFINE_uint64(process_id, 0, "Process id");
 DEFINE_uint64(instance_id, 0, "Instance id (this is to properly set the RPCs");
-DEFINE_uint64(reqs_num, 1, "Number of reqs");
+DEFINE_uint64(reqs_num, 1e6, "Number of reqs");
 
 using rpc_handle = erpc::Rpc<erpc::CTransport>;
 
@@ -243,7 +243,7 @@ void proto_func(size_t thread_id, erpc::Nexus *nexus) {
   /* we can start */
 
   if (FLAGS_process_id == chain_replication::head)
-    head_func(ctx, std::string{krose});
+    head_func(ctx, std::string{kamy});
   else if (FLAGS_process_id == chain_replication::middle)
     middle_func(ctx, std::string{kdonna}, std::string{kmartha});
   else if (FLAGS_process_id == ::chain_replication::tail)
@@ -331,7 +331,9 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
   }
   fmt::print("\n.....>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
   size_t signed_msg_size = req_handle->get_req_msgbuf()->get_data_size();
+  std::cout << " ..... (1)\n";
   auto result = msg_manager::verify(batched_msg.get());
+  std::cout << " ..... (2)\n";
   auto payload_sz = std::get<0>(result);
   auto payload = std::move(std::get<1>(result));
   if (payload_sz == -1)
@@ -477,7 +479,7 @@ int main(int args, char *argv[]) {
   if (FLAGS_process_id == 0) {
     server_uri = kdonna + ":" + std::to_string(kUDPPort);
   } else if (FLAGS_process_id == 1) {
-    server_uri = krose + ":" + std::to_string(kUDPPort);
+    server_uri = kamy + ":" + std::to_string(kUDPPort);
   } else if (FLAGS_process_id == 2) {
     server_uri = kmartha + ":" + std::to_string(kUDPPort);
   } else {
