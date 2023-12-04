@@ -3,7 +3,7 @@
 
 /* the batched message */
 struct msg_manager {
-  static constexpr size_t batch_count = 5;
+  static constexpr size_t batch_count = 1;
   msg_manager() {
     buffer = std::make_unique<uint8_t[]>(batch_count * kMsgSize);
     fmt::print("sizeof(msg)={}\n", kMsgSize);

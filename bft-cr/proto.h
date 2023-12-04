@@ -48,8 +48,11 @@ bool check_leader(uint8_t *ptr, state *st) {
   st->cmt_idx++;
   uint32_t cmt_idx = 0;
   ::memcpy(&cmt_idx, (ptr + sizeof(msg) + sizeof(msg)), sizeof(uint32_t));
+
+#ifdef DEBUG_PRINT
   fmt::print("[{} #{}] CORRECT LEADER: cmt_idx={} (from leader) (current={})\n",
              __func__, count, cmt_idx, st->cmt_idx);
+#endif
   if (st->cmt_idx != cmt_idx) {
     fmt::print(
         "[{}] ERROR: leader's action {} does not match the expected leader's "

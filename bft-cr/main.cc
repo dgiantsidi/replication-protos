@@ -21,7 +21,7 @@ DEFINE_uint64(req_size, 64, "Size of request message in bytes");
 DEFINE_uint64(resp_size, 32, "Size of response message in bytes");
 DEFINE_uint64(process_id, 0, "Process id");
 DEFINE_uint64(instance_id, 0, "Instance id (this is to properly set the RPCs");
-DEFINE_uint64(reqs_num, 1e6, "Number of reqs");
+DEFINE_uint64(reqs_num, 2e6, "Number of reqs");
 
 using rpc_handle = erpc::Rpc<erpc::CTransport>;
 
@@ -55,6 +55,7 @@ public:
   rpc_handle *rpc = nullptr;
   int node_id = 0, thread_id = 0;
   int instance_id = 0; /* instance id used to create the rpcs */
+  uint64_t nb_cmts = 0;
   msg_manager *batcher = nullptr;
   state *st = nullptr;
 
@@ -184,14 +185,31 @@ void head_func(app_context *ctx, const std::string &uri) {
              __PRETTY_FUNCTION__, ctx->instance_id, ctx->thread_id, uri);
   create_session(uri, chain_replication::middle, ctx);
   ctx->rpc->run_event_loop(100);
+  auto start = std::chrono::steady_clock::now();
+    int iterations = FLAGS_reqs_num;
+
   for (auto i = 0ULL; i < FLAGS_reqs_num; i++) {
     send_req(i, chain_replication::middle, ctx);
     poll(ctx);
   }
   flash_batcher(chain_replication::middle, ctx);
   fmt::print("{} polls until the end ...\n", __func__);
-  for (;;)
+  for (;;) {
     ctx->rpc->run_event_loop_once();
+	 if (ctx->nb_cmts == FLAGS_reqs_num) 
+		 break;
+  }
+  fmt::print("[{}] ctx->nb_cmts={}\n", __PRETTY_FUNCTION__,
+               ctx->nb_cmts);
+    auto end = std::chrono::steady_clock::now();
+    auto duration2 =
+        std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    const std::chrono::duration<double> elapsed_seconds{end - start};
+    fmt::print("[{}] elapsed={}/{} for {} iterations (avg_lat={} sec\t {}us)\n",
+               __PRETTY_FUNCTION__, elapsed_seconds.count(), duration2.count(),
+               iterations, (elapsed_seconds.count() * 1.0) / (iterations * 1.0),
+               ((duration2.count() * 1.0) / (iterations * 1.0)));
+
 }
 
 void tail_func(app_context *ctx, const std::string &uri) {
@@ -241,13 +259,22 @@ void proto_func(size_t thread_id, erpc::Nexus *nexus) {
   using namespace std::chrono_literals;
   std::this_thread::sleep_for(5000ms);
   /* we can start */
-
+#if THREE_NODE
   if (FLAGS_process_id == chain_replication::head)
     head_func(ctx, std::string{kamy});
   else if (FLAGS_process_id == chain_replication::middle)
     middle_func(ctx, std::string{kdonna}, std::string{kmartha});
   else if (FLAGS_process_id == ::chain_replication::tail)
     tail_func(ctx, std::string{kdonna});
+#endif
+#if TWO_NODE
+  if (FLAGS_process_id == chain_replication::head)
+    head_func(ctx, std::string{kmartha});
+  else if (FLAGS_process_id == ::chain_replication::tail)
+    tail_func(ctx, std::string{kdonna});
+#endif
+
+   delete ctx;
 
   fmt::print("[{}]\tthread_id={} exits.\n", __PRETTY_FUNCTION__, thread_id);
 }
@@ -269,6 +296,7 @@ void forward_req(int dest_node, std::unique_ptr<uint8_t[]> buff, size_t buff_sz,
   buffs->alloc_resp_buf(kMsgSize, ctx->rpc);
 
   ::memcpy(buffs->req.buf, buff.get(), buff_sz);
+#ifdef DEBUG_PRINT
   fmt::print("[{}] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  what we "
              "forward: signed_msg_size={}\n",
              __func__, buff_sz);
@@ -276,7 +304,7 @@ void forward_req(int dest_node, std::unique_ptr<uint8_t[]> buff, size_t buff_sz,
     fmt::print("{}", buff.get()[i]);
   }
   fmt::print("\n.....>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
-
+#endif
   // enqueue_req
   ctx->rpc->enqueue_request(ctx->connections[dest_node], kReqForward,
                             &buffs->req, &buffs->resp, cont_func,
@@ -323,6 +351,7 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
 
   auto batched_msg = msg_manager::deserialize(
       recv_data, req_handle->get_req_msgbuf()->get_data_size());
+#ifdef DEBUG_PRINT
   fmt::print("[{}] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  what we "
              "received: signed_msg_size={}\n",
              __func__, req_handle->get_req_msgbuf()->get_data_size());
@@ -330,10 +359,11 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
     fmt::print("{}", batched_msg.get()[i]);
   }
   fmt::print("\n.....>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+#endif
   size_t signed_msg_size = req_handle->get_req_msgbuf()->get_data_size();
-  std::cout << " ..... (1)\n";
+ // std::cout << " ..... (1)\n";
   auto result = msg_manager::verify(batched_msg.get());
-  std::cout << " ..... (2)\n";
+  // std::cout << " ..... (2)\n";
   auto payload_sz = std::get<0>(result);
   auto payload = std::move(std::get<1>(result));
   if (payload_sz == -1)
@@ -448,6 +478,7 @@ void req_handler_cmt(erpc::ReqHandle *req_handle,
   /* enqueue ack */
 
   app_context *ctx = reinterpret_cast<app_context *>(context);
+	ctx->nb_cmts++;
   auto &resp = req_handle->pre_resp_msgbuf;
   if (ctx == nullptr) {
     fmt::print("{} ctx==nullptr \n", __func__);
@@ -474,7 +505,7 @@ int main(int args, char *argv[]) {
 
   size_t num_threads = FLAGS_process_id == 0 ? FLAGS_num_server_threads
                                              : FLAGS_num_client_threads;
-
+#if THREE_NODE
   std::string server_uri;
   if (FLAGS_process_id == 0) {
     server_uri = kdonna + ":" + std::to_string(kUDPPort);
@@ -485,6 +516,19 @@ int main(int args, char *argv[]) {
   } else {
     fmt::print("[{}] not valid process_id={}\n", __func__, FLAGS_process_id);
   }
+#endif
+#if TWO_NODE
+  std::string server_uri;
+  if (FLAGS_process_id == 0) {
+    server_uri = kdonna + ":" + std::to_string(kUDPPort);
+  } else if (FLAGS_process_id == 1) {
+    server_uri = kamy + ":" + std::to_string(kUDPPort);
+  } else if (FLAGS_process_id == 2) {
+    server_uri = kmartha + ":" + std::to_string(kUDPPort);
+  } else {
+    fmt::print("[{}] not valid process_id={}\n", __func__, FLAGS_process_id);
+  }
+#endif
   erpc::Nexus nexus(server_uri, 0, 0);
   nexus.register_req_func(kReqForward, req_handler_fw);
   nexus.register_req_func(kReqCommit, req_handler_cmt);

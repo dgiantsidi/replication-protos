@@ -4,7 +4,7 @@
 cmake_minimum_required (VERSION 2.8.11)
 project (bft-cr)
 
-SET(CMAKE_CXX_FLAGS  "-DERPC_DPDK=true -g -O3")
+SET(CMAKE_CXX_FLAGS  "-DERPC_DPDK=true -g -O3 -DTWO_NODE=true")
 SET(EXTRA_FLAGS "")
 if (SANITIZE)
         SET(CMAKE_CXX_FLAGS  "-DERPC_DPDK=true -g -O3 -fsanitize=address")

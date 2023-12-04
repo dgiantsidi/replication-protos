@@ -23,7 +23,7 @@ public:
     using namespace std::chrono_literals;
     //			std::this_thread::sleep_for(10us); //@dimitra: from
     // microbenchmarking
-#if 0
+#if 1
     constexpr int native_delay_in_us = 10;
 
     auto start = std::chrono::steady_clock::now();

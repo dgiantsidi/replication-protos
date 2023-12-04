@@ -117,12 +117,14 @@ struct msg_manager {
         (HMAC_N::signature_size * sizeof(uint8_t) + sizeof(uint64_t) +
          (batch_count * message_size) * sizeof(uint8_t)) /
         sizeof(uint8_t);
+#ifdef DEBUG_PRINT
     if ((buf_sz != message_size * batch_count) && (buf_sz != alloc_sz))
       fmt::print(
           "[{}] WARNING: buf_sz ({}) != batch_count*message_size ({}) and != "
           "alloc_sz ({})\n",
           __PRETTY_FUNCTION__, buf_sz, (message_size * batch_count), alloc_sz);
-    auto data = std::make_unique<uint8_t[]>(buf_sz);
+#endif
+auto   data = std::make_unique<uint8_t[]>(buf_sz);
     ::memcpy(data.get(), buf, buf_sz);
     return std::move(data);
   }
