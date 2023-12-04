@@ -75,12 +75,12 @@ auto secure_recv(int fd) -> std::pair<size_t, std::unique_ptr<char[]>> {
 
 auto secure_send(int fd, char *data, size_t len) -> std::optional<size_t> {
 
-/*
-  for (auto i = 0ULL; i < len; i++) {
-    fmt::print("{}", static_cast<int>(data[i]));
-  }
-  fmt::print("\n");
-  */
+  /*
+    for (auto i = 0ULL; i < len; i++) {
+      fmt::print("{}", static_cast<int>(data[i]));
+    }
+    fmt::print("\n");
+    */
   auto bytes = 0LL;
   auto remaining_bytes = len;
 

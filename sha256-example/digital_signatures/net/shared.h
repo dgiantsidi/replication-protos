@@ -162,10 +162,10 @@ static int connect_to_the_server(int port, char const * /*hostname*/,
   sockaddr_in their_addr{};
   their_addr.sin_family = AF_INET;
   their_addr.sin_port = htons(port);
-  inet_aton("131.159.102.8", &their_addr.sin_addr);
+//  inet_aton("131.159.102.8", &their_addr.sin_addr);
  // inet_aton("10.0.2.15", &their_addr.sin_addr);
 //  their_addr.sin_addr = inet_addr("131.159.102.8"); //*(reinterpret_cast<in_addr *>(he->h_addr));
- // their_addr.sin_addr = *(reinterpret_cast<in_addr *>(he->h_addr));
+ their_addr.sin_addr = *(reinterpret_cast<in_addr *>(he->h_addr));
   memset(&(their_addr.sin_zero), 0, sizeof(their_addr.sin_zero));
 
   if (connect(sockfd, reinterpret_cast<sockaddr *>(&their_addr),
