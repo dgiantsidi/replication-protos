@@ -1,8 +1,11 @@
+#pragma once
 #include "openssl/hmac.h"
 #include <cstring>
 #include <iostream>
 #include <tuple>
 #include <vector>
+#include <memory>
+
 
 static constexpr size_t _hmac_size = EVP_MAX_MD_SIZE / 2;
 std::tuple<std::vector<unsigned char>, size_t>

@@ -48,8 +48,11 @@ bool check_leader(uint8_t *ptr, state *st) {
   st->cmt_idx++;
   uint32_t cmt_idx = 0;
   ::memcpy(&cmt_idx, (ptr + sizeof(msg) + sizeof(msg)), sizeof(uint32_t));
+
+#ifdef DEBUG_PRINT
   fmt::print("[{} #{}] CORRECT LEADER: cmt_idx={} (from leader) (current={})\n",
              __func__, count, cmt_idx, st->cmt_idx);
+#endif
   if (st->cmt_idx != cmt_idx) {
     fmt::print(
         "[{}] ERROR: leader's action {} does not match the expected leader's "
@@ -114,8 +117,8 @@ bool verify_execution(char *data, int node_id, state *st) {
 std::tuple<size_t, std::unique_ptr<uint8_t[]>>
 construct_msg_middle(std::unique_ptr<uint8_t[]> leader_msg, size_t msg_sz,
                      uint8_t *payload) {
-  size_t alloc_sz = (signature_size * sizeof(uint8_t) + sizeof(uint64_t) +
-                     sizeof(msg) + sizeof(uint32_t)) /
+  size_t alloc_sz = (HMAC_N::signature_size * sizeof(uint8_t) +
+                     sizeof(uint64_t) + sizeof(msg) + sizeof(uint32_t)) /
                     sizeof(uint8_t);
 #if 0
   for (auto i = 0; i < msg_sz; i++) {
@@ -139,15 +142,16 @@ construct_msg_middle(std::unique_ptr<uint8_t[]> leader_msg, size_t msg_sz,
   }
   fmt::print("\n ....>>>>...\n");
 #endif
-  bool ret =
-      sign_msg(data.get(), msg_sz + sizeof(msg) + sizeof(uint32_t),
-               reinterpret_cast<uint8_t *>(privateKey), signed_data.get());
+  char *privateKey = nullptr;
+  bool ret = HMAC_N::sign_msg(
+      data.get(), msg_sz + sizeof(msg) + sizeof(uint32_t),
+      reinterpret_cast<uint8_t *>(privateKey), signed_data.get());
   if (!ret) {
     fmt::print("[{}] ERROR: sign w/ priv key failed.\n", __PRETTY_FUNCTION__);
     exit(0);
   }
 #ifdef DEBUG_PRINT
-  fmt::print("[{}] encryption done ..\n", __func__);
+  fmt::print("[{}] signing done ..\n", __func__);
 #endif
   return std::make_tuple(sz, std::move(signed_data));
 }
@@ -177,7 +181,7 @@ bool verify_execution_tail(char *data, int node_id, state *st) {
       fmt::print("[{}] ERROR: checking outputs failed.\n", __func__);
       return false;
     }
-    fmt::print("{} OUTPUTS ALSO CORRECT ???????\n", __func__);
+    // fmt::print("{} OUTPUTS ALSO CORRECT ???????\n", __func__);
 #endif
   } else if (node_id == chain_replication::middle) {
     return check_leader(reinterpret_cast<uint8_t *>(data), st);
