@@ -1,5 +1,7 @@
 #pragma once
-
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
@@ -11,6 +13,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+
 
 #if !defined(NDEBUG)
 #include <fmt/format.h>
@@ -36,7 +39,7 @@ template <class... Args> void debug_print(Args &&...) {}
 #endif
 
 static constexpr auto length_size_field = sizeof(uint32_t);
-static constexpr auto client_base_addr = 30500;
+static constexpr auto client_base_addr = 18001;
 static constexpr auto number_of_connect_attempts = 20;
 static constexpr auto gets_per_mille = 200;
 
@@ -159,12 +162,15 @@ static int connect_to_the_server(int port, char const * /*hostname*/,
   sockaddr_in their_addr{};
   their_addr.sin_family = AF_INET;
   their_addr.sin_port = htons(port);
-  their_addr.sin_addr = *(reinterpret_cast<in_addr *>(he->h_addr));
+//  inet_aton("131.159.102.8", &their_addr.sin_addr);
+ // inet_aton("10.0.2.15", &their_addr.sin_addr);
+//  their_addr.sin_addr = inet_addr("131.159.102.8"); //*(reinterpret_cast<in_addr *>(he->h_addr));
+ their_addr.sin_addr = *(reinterpret_cast<in_addr *>(he->h_addr));
   memset(&(their_addr.sin_zero), 0, sizeof(their_addr.sin_zero));
 
   if (connect(sockfd, reinterpret_cast<sockaddr *>(&their_addr),
               sizeof(struct sockaddr)) == -1) {
-    fmt::print("connect issue\n");
+    fmt::print("connect issue @{}\n", port);
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     exit(1);
   }
@@ -195,9 +201,11 @@ static int connect_to_the_server(int port, char const * /*hostname*/,
   memset(&(my_addr.sin_zero), 0,
          sizeof(my_addr.sin_zero)); // zero the rest of the struct
 
-  if (bind(repfd, reinterpret_cast<sockaddr *>(&my_addr), sizeof(sockaddr)) ==
+  int err_no = 0;
+  if ((err_no = bind(repfd, reinterpret_cast<sockaddr *>(&my_addr), sizeof(sockaddr))) ==
       -1) {
-    fmt::print("bind\n");
+    fmt::print("bind failed, port={}\n", port);
+    std::cout << std::strerror(errno) << "\n";
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     exit(1);
   }

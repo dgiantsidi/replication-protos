@@ -1,5 +1,6 @@
 #pragma once
 #include "sha256.hpp"
+#include <cassert>
 // #include <city.h>
 #include <cstring>
 #include <fmt/printf.h>
