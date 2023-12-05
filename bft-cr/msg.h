@@ -124,7 +124,7 @@ struct msg_manager {
           "alloc_sz ({})\n",
           __PRETTY_FUNCTION__, buf_sz, (message_size * batch_count), alloc_sz);
 #endif
-auto   data = std::make_unique<uint8_t[]>(buf_sz);
+    auto data = std::make_unique<uint8_t[]>(buf_sz);
     ::memcpy(data.get(), buf, buf_sz);
     return std::move(data);
   }

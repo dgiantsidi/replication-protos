@@ -186,7 +186,7 @@ void head_func(app_context *ctx, const std::string &uri) {
   create_session(uri, chain_replication::middle, ctx);
   ctx->rpc->run_event_loop(100);
   auto start = std::chrono::steady_clock::now();
-    int iterations = FLAGS_reqs_num;
+  int iterations = FLAGS_reqs_num;
 
   for (auto i = 0ULL; i < FLAGS_reqs_num; i++) {
     send_req(i, chain_replication::middle, ctx);
@@ -196,20 +196,18 @@ void head_func(app_context *ctx, const std::string &uri) {
   fmt::print("{} polls until the end ...\n", __func__);
   for (;;) {
     ctx->rpc->run_event_loop_once();
-	 if (ctx->nb_cmts == FLAGS_reqs_num) 
-		 break;
+    if (ctx->nb_cmts == FLAGS_reqs_num)
+      break;
   }
-  fmt::print("[{}] ctx->nb_cmts={}\n", __PRETTY_FUNCTION__,
-               ctx->nb_cmts);
-    auto end = std::chrono::steady_clock::now();
-    auto duration2 =
-        std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    const std::chrono::duration<double> elapsed_seconds{end - start};
-    fmt::print("[{}] elapsed={}/{} for {} iterations (avg_lat={} sec\t {}us)\n",
-               __PRETTY_FUNCTION__, elapsed_seconds.count(), duration2.count(),
-               iterations, (elapsed_seconds.count() * 1.0) / (iterations * 1.0),
-               ((duration2.count() * 1.0) / (iterations * 1.0)));
-
+  fmt::print("[{}] ctx->nb_cmts={}\n", __PRETTY_FUNCTION__, ctx->nb_cmts);
+  auto end = std::chrono::steady_clock::now();
+  auto duration2 =
+      std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  const std::chrono::duration<double> elapsed_seconds{end - start};
+  fmt::print("[{}] elapsed={}/{} for {} iterations (avg_lat={} sec\t {}us)\n",
+             __PRETTY_FUNCTION__, elapsed_seconds.count(), duration2.count(),
+             iterations, (elapsed_seconds.count() * 1.0) / (iterations * 1.0),
+             ((duration2.count() * 1.0) / (iterations * 1.0)));
 }
 
 void tail_func(app_context *ctx, const std::string &uri) {
@@ -274,7 +272,7 @@ void proto_func(size_t thread_id, erpc::Nexus *nexus) {
     tail_func(ctx, std::string{kdonna});
 #endif
 
-   delete ctx;
+  delete ctx;
 
   fmt::print("[{}]\tthread_id={} exits.\n", __PRETTY_FUNCTION__, thread_id);
 }
@@ -361,7 +359,7 @@ void req_handler_fw(erpc::ReqHandle *req_handle,
   fmt::print("\n.....>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
 #endif
   size_t signed_msg_size = req_handle->get_req_msgbuf()->get_data_size();
- // std::cout << " ..... (1)\n";
+  // std::cout << " ..... (1)\n";
   auto result = msg_manager::verify(batched_msg.get());
   // std::cout << " ..... (2)\n";
   auto payload_sz = std::get<0>(result);
@@ -478,7 +476,7 @@ void req_handler_cmt(erpc::ReqHandle *req_handle,
   /* enqueue ack */
 
   app_context *ctx = reinterpret_cast<app_context *>(context);
-	ctx->nb_cmts++;
+  ctx->nb_cmts++;
   auto &resp = req_handle->pre_resp_msgbuf;
   if (ctx == nullptr) {
     fmt::print("{} ctx==nullptr \n", __func__);
