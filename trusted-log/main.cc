@@ -88,8 +88,8 @@ public:
     protocol_metadata() {
       witness_meta.emplace(std::make_pair(1 /* node id */, audit_protocol()));
       witness_meta.emplace(std::make_pair(2 /* node id */, audit_protocol()));
-      tlog = std::make_unique<trusted_log<LogEntry>>((LogEntry * FLAGS_reqs_num * 4)/
-                                                     msg_manager::batch_count);
+      tlog = std::make_unique<trusted_log<LogEntry>>(
+          (LogEntry * FLAGS_reqs_num * 4) / msg_manager::batch_count);
     }
     uint8_t my_last_state[p_metadata::HashSize] = {0x0};
     uint8_t f1_last_state[p_metadata::HashSize] = {0x0};
