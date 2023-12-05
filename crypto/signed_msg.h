@@ -122,7 +122,7 @@ inline bool sign_msg(uint8_t *plain_text, size_t plain_text_sz,
 #endif
 
   //		auto [signed_digest, sz] = hmac_sha256(plain_text,
-  //plain_text_sz);
+  // plain_text_sz);
 
   if (sz <= 0) {
     fmt::print("[{}] error (sz={})\n", __func__, sz);
@@ -193,7 +193,7 @@ verify_get_msg(uint8_t *signed_msg_buff, uint8_t *public_key) {
       tnic_api::native_get_attestation(plain_text, plain_text_sz);
 #endif
   //	auto [signed_digest, sz] = hmac_sha256(signed_msg_buff + _max_hash_sz +
-  //sizeof(plain_text_sz), plain_text_sz);
+  // sizeof(plain_text_sz), plain_text_sz);
   auto calc_hash = reinterpret_cast<char *>(signed_digest.data());
 
   auto recv_hash = reinterpret_cast<char *>(signed_msg_buff);
