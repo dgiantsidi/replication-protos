@@ -39,8 +39,8 @@ struct ack_msg {
   uint32_t cmt;
   uint32_t sender;
   uint8_t state[HashSize];
-  // TODO: log the sender's action too
-  //  uint8_t cmd[CmdSize];
+  // log the sender's action too
+  uint8_t cmd[p_msg::CmdSize];
 };
 
 static int f_get_msg_buf_sz() { return sizeof(ack_msg); }
@@ -140,8 +140,8 @@ void memcpy_ack_into_buffer(ack_msg &msg, uint8_t *buf) {
   ::memcpy(buf + offset, msg.ack, ack_msg::AckSize);
   offset += ack_msg::AckSize;
   ::memcpy(buf + offset, msg.output, ack_msg::OutSize);
-  offset += sizeof(uint32_t);
+  offset += ack_msg::OutSize;
   ::memcpy(buf + offset, &(msg.cmt), sizeof(uint32_t));
-  offset += sizeof(uint32_t);
+  offset += sizeof(ack_msg::cmt);
   ::memcpy(buf + offset, &(msg.sender), sizeof(uint32_t));
 }

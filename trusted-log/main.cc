@@ -1,7 +1,8 @@
 #include "common.h"
-#include "crypto/hmac_lib.h"
+// #include "crypto/hmac_lib.h"
 #include "log.h"
 #include "msg.h"
+#include "tnic_mock_api/api.h"
 #include "util/numautils.h"
 #include <chrono>
 #include <cstring>
@@ -11,6 +12,7 @@
 #include <thread>
 
 static constexpr int kReqPropose = 1;
+static constexpr int kReqTerminate = 5;
 static constexpr int kPrintBatch = 50000;
 static constexpr int numa_node =
     0; /*@dimitra: currently only 0-numa is supported */
@@ -19,13 +21,18 @@ static constexpr uint8_t kDefaultCmd[p_msg::CmdSize] = {0x0};
 DEFINE_uint64(num_server_threads, 1, "Number of threads at the server machine");
 DEFINE_uint64(num_client_threads, 1, "Number of threads per client machine");
 DEFINE_uint64(process_id, 0, "Process id");
-DEFINE_uint64(reqs_num, 200e6, "Number of reqs");
+DEFINE_uint64(reqs_num, 5e6, "Number of reqs");
 
 using rpc_handle = erpc::Rpc<erpc::CTransport>;
 
 enum pb { leader = 0, follower = 1 };
 
+// forward decls
 class app_context;
+bool log_audit(app_context *ctx);
+void decode_print_ctx(const char *ctx_ptr);
+std::tuple<uint32_t, uint32_t, uint32_t>
+decode_print_ctx_leader(const char *ctx_ptr);
 
 struct rpc_buffs {
   erpc::MsgBuffer req;
@@ -64,9 +71,10 @@ public:
   struct protocol_metadata {
     struct audit_protocol {
       int last_log_seq = 0;
-      int last_state_cmt = 0;
     };
-    stuct audit_protocol witness_meta;
+
+    std::map<int, struct audit_protocol> witness_meta;
+    int last_state_cmt = 0;
     int leader = pb::follower;
     bool is_leader() { return leader == pb::leader; }
     uint32_t cmt_idx = 0;
@@ -74,9 +82,13 @@ public:
     uint8_t mock_h1[p_metadata::HashSize] = {0x0};
     uint8_t mock_h2[p_metadata::HashSize] = {0x0};
     static constexpr size_t LogEntry = kMsgSize * msg_manager::batch_count;
+
     std::unique_ptr<trusted_log<LogEntry>> tlog;
+
     protocol_metadata() {
-      tlog = std::make_unique<trusted_log<LogEntry>>(LogEntry * 16e6 /
+      witness_meta.emplace(std::make_pair(1 /* node id */, audit_protocol()));
+      witness_meta.emplace(std::make_pair(2 /* node id */, audit_protocol()));
+      tlog = std::make_unique<trusted_log<LogEntry>>((LogEntry * FLAGS_reqs_num * 4)/
                                                      msg_manager::batch_count);
     }
     uint8_t my_last_state[p_metadata::HashSize] = {0x0};
@@ -86,18 +98,109 @@ public:
 
     using req_id = int;
     using nb_acks = int;
+
+    bool validate_log_entry(int cur_idx) {
+      if (cur_idx == 0)
+        return true;
+      auto prev_idx = cur_idx - 1;
+      std::unique_ptr<char[]> prev_entry =
+          std::make_unique<char[]>(sizeof(trusted_log<LogEntry>::log_entry));
+      tlog->serialize_entry(prev_entry.get(), prev_idx);
+
+#ifdef FPGA
+#warning "FPGA-version is enabled"
+      auto [c_digest, len] = tnic_api::FPGA_get_attestation(
+          reinterpret_cast<uint8_t *>(prev_entry.get()),
+          sizeof(trusted_log<LogEntry>::log_entry));
+#elif SGX
+#warning "SGX-version is enabled"
+      auto [c_digest, len] = tnic_api::SGX_get_attestation(
+          reinterpret_cast<uint8_t *>(prev_entry.get()),
+          sizeof(trusted_log<LogEntry>::log_entry));
+#elif AMD
+#warning "AMDSEV-version is enabled"
+      auto [c_digest, len] = tnic_api::AMDSEV_get_attestation(
+          reinterpret_cast<uint8_t *>(prev_entry.get()),
+          sizeof(trusted_log<LogEntry>::log_entry));
+#else
+      auto [c_digest, len] = tnic_api::native_get_attestation(
+          reinterpret_cast<uint8_t *>(prev_entry.get()),
+          sizeof(trusted_log<LogEntry>::log_entry));
+#endif
+      /*
+      auto [c_digest, len] =
+          hmac_sha256(reinterpret_cast<uint8_t *>(prev_entry.get()),
+                      sizeof(trusted_log<LogEntry>::log_entry));
+        */
+      char *ctx_ptr = nullptr;
+      size_t ctx_sz = 0;
+      tlog->print_entry_at(cur_idx, ctx_ptr, ctx_sz);
+      char *cur_digest = tlog->get_entry_at(cur_idx) +
+                         sizeof(trusted_log<LogEntry>::log_entry::sequencer) +
+                         trusted_log<LogEntry>::log_entry::CtxSize;
+      if (::memcmp(c_digest.data(), cur_digest, len) != 0) {
+        fmt::print("[{}] c_digest != cur_digest\nc_digest=",
+                   __PRETTY_FUNCTION__);
+        for (auto i = 0ULL; i < len; i++) {
+          fmt::print("{}", c_digest.data()[i]);
+        }
+        fmt::print("\ncur_digest=");
+        for (auto i = 0ULL; i < len; i++) {
+          fmt::print("{}", reinterpret_cast<unsigned char *>(cur_digest)[i]);
+        }
+        fmt::print("\n");
+        return false;
+      }
+      return true;
+    }
+
     bool log(char *context_data, size_t ctx_data_sz, char *authenticator) {
       auto *tail = tlog->get_tail();
       std::unique_ptr<char[]> tail_serialized =
           std::make_unique<char[]>(sizeof(trusted_log<LogEntry>::log_entry));
       tlog->serialize_tail(tail_serialized.get());
+      // TODO: digest of tail + current entry
+#ifdef FPGA
+#warning "FPGA-version is enabled"
+      auto [c_digest, len] = tnic_api::FPGA_get_attestation(
+          reinterpret_cast<uint8_t *>(tail_serialized.get()),
+          sizeof(trusted_log<LogEntry>::log_entry));
+#elif SGX
+#warning "SGX-version is enabled"
+      auto [c_digest, len] = tnic_api::SGX_get_attestation(
+          reinterpret_cast<uint8_t *>(tail_serialized.get()),
+          sizeof(trusted_log<LogEntry>::log_entry));
+#elif AMD
+#warning "AMDSEV-version is enabled"
+      auto [c_digest, len] = tnic_api::AMDSEV_get_attestation(
+          reinterpret_cast<uint8_t *>(tail_serialized.get()),
+          sizeof(trusted_log<LogEntry>::log_entry));
+#else
+      auto [c_digest, len] = tnic_api::native_get_attestation(
+          reinterpret_cast<uint8_t *>(tail_serialized.get()),
+          sizeof(trusted_log<LogEntry>::log_entry));
+#endif
+      /*
       auto [c_digest, len] =
           hmac_sha256(reinterpret_cast<uint8_t *>(tail_serialized.get()),
                       sizeof(trusted_log<LogEntry>::log_entry));
+        */
       trusted_log<LogEntry>::log_entry e;
       e.sequencer = tlog->get_log_size();
       // c_digest is a vector<char>
       ::memcpy(e.c_digest, c_digest.data(), len);
+#if 0
+      fmt::print("[{}] digest to be added:", __func__);
+      for (auto i = 0ULL; i < len; i++) {
+        fmt::print("{}", c_digest.data()[i]);
+      }
+      fmt::print("\n");
+      fmt::print("[{}] added entry digest:", __func__);
+      for (auto i = 0ULL; i < len; i++) {
+        fmt::print("{}", reinterpret_cast<unsigned char *>(e.c_digest)[i]);
+      }
+      fmt::print("\n");
+#endif
       ::memcpy(e.authenticator, authenticator,
                trusted_log<LogEntry>::log_entry::AuthSize);
       if (ctx_data_sz > trusted_log<LogEntry>::log_entry::CtxSize) {
@@ -134,6 +237,9 @@ public:
   int instance_id = 0; /* instance id used to create the rpcs */
   msg_manager *batcher = nullptr;
   protocol_metadata *metadata = nullptr;
+  uint32_t count_replies = 0;
+  uint32_t finished_nodes = 0;
+  bool stop = false;
 
   uint64_t enqueued_msgs_cnt = 0;
 
@@ -145,6 +251,17 @@ public:
     delete rpc;
   }
 };
+
+static void cont_func_terminate(void *context, void *t) {
+  auto *ctx = static_cast<app_context *>(context);
+  if (ctx == nullptr) {
+    fmt::print("{} ctx==nullptr (going to sleep for 10s)\n", __func__);
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(10000ms);
+  }
+  auto *tag = static_cast<rpc_buffs *>(t);
+  ctx->finished_nodes++;
+}
 
 static void cont_func_prp(void *context, void *t) {
   static uint64_t count = 0;
@@ -159,7 +276,23 @@ static void cont_func_prp(void *context, void *t) {
   auto *response = tag->resp.buf;
   auto buf_sz = tag->resp.get_data_size();
   // validate (TNIC)
-  auto [calc_mac, len] = hmac_sha256(response, (buf_sz - _hmac_size));
+#ifdef FPGA
+#warning "FPGA-version is enabled"
+  auto [calc_mac, len] =
+      tnic_api::FPGA_get_attestation(response, (buf_sz - _hmac_size));
+#elif SGX
+#warning "SGX-version is enabled"
+  auto [calc_mac, len] =
+      tnic_api::SGX_get_attestation(response, (buf_sz - _hmac_size));
+#elif AMD
+#warning "AMDSEV-version is enabled"
+  auto [calc_mac, len] =
+      tnic_api::AMDSEV_get_attestation(response, (buf_sz - _hmac_size));
+#else
+  auto [calc_mac, len] =
+      tnic_api::native_get_attestation(response, (buf_sz - _hmac_size));
+#endif
+  // auto [calc_mac, len] = hmac_sha256(response, (buf_sz - _hmac_size));
   if (::memcmp(response + (buf_sz - _hmac_size), calc_mac.data(), len) != 0) {
     fmt::print("[{}] error on HMAC validation\n", __PRETTY_FUNCTION__);
   }
@@ -171,6 +304,7 @@ static void cont_func_prp(void *context, void *t) {
   ctx->metadata->log(reinterpret_cast<char *>(ctx_data), ctx_data_sz,
                      reinterpret_cast<char *>(authenticator));
 
+  ctx->count_replies++;
   if ((count % kPrintBatch) == 0) {
     fmt::print("[{}] ack-ed {} prp_reqs\n", __func__, count);
   }
@@ -194,9 +328,25 @@ static void cont_func_prp(void *context, void *t) {
   count++;
 }
 
+void send_req_finito(int idx, const std::vector<int> &dest_ids,
+                     app_context *ctx) {
+  fmt::print("[{}] \n", __func__);
+  for (auto &dest_id : dest_ids) {
+    // construct message
+    rpc_buffs *buffs = new rpc_buffs(ctx->rpc);
+    buffs->alloc_req_buf(kMsgSize, ctx->rpc);
+    buffs->alloc_resp_buf(kMsgSize + _hmac_size, ctx->rpc);
+
+    ctx->rpc->enqueue_request(ctx->connections[dest_id], kReqTerminate,
+                              &buffs->req, &buffs->resp, cont_func_terminate,
+                              reinterpret_cast<void *>(buffs));
+  }
+}
+
 void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
   // construct message
   auto msg_buf = std::make_unique<p_msg>();
+  auto char_msg_buf = std::make_unique<uint8_t[]>(sizeof(p_msg));
 
   // fill in the message buf with data
   ::memcpy(msg_buf->cmd, kDefaultCmd, p_msg::CmdSize);
@@ -205,14 +355,21 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
   ::memcpy(msg_buf->meta.f1_prev, ctx->get_f1_hash(), p_metadata::HashSize);
   ::memcpy(msg_buf->meta.f2_prev, ctx->get_f2_hash(), p_metadata::HashSize);
 
+  memcpy_p_msg_into_buffer(*(msg_buf.get()), char_msg_buf.get());
+#if 0
+  std::cout << "MY DEBUG:\n";
+  decode_print_ctx(reinterpret_cast<char *>(char_msg_buf.get()));
+  std::cout << "MY DEBUG ends\n";
+#endif
+
   if (p_get_msg_buf_sz() != sizeof(p_msg)) {
     fmt::print(
         "[{}] buf sizes missmatch (check alignment and padding!) {} vs {}\n",
         __PRETTY_FUNCTION__, p_get_msg_buf_sz(), sizeof(p_msg));
     exit(128);
   }
-  if (!ctx->batcher->enqueue_req(reinterpret_cast<uint8_t *>(msg_buf.get()),
-                                 sizeof(p_msg))) {
+  if (!ctx->batcher->enqueue_req(
+          reinterpret_cast<uint8_t *>(char_msg_buf.get()), sizeof(p_msg))) {
     for (auto &dest_id : dest_ids) {
       // needs to send
       rpc_buffs *buffs = new rpc_buffs(ctx->rpc);
@@ -224,8 +381,26 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
                kMsgSize * msg_manager::batch_count);
 
       // sign before transmission
+#ifdef FPGA
+#warning "FPGA-version is enabled"
+      auto [mac, len] = tnic_api::FPGA_get_attestation(
+          buffs->req.buf, kMsgSize * msg_manager::batch_count);
+#elif SGX
+#warning "SGX-version is enabled"
+      auto [mac, len] = tnic_api::SGX_get_attestation(
+          buffs->req.buf, kMsgSize * msg_manager::batch_count);
+#elif AMD
+#warning "AMDSEV-version is enabled"
+      auto [mac, len] = tnic_api::AMDSEV_get_attestation(
+          buffs->req.buf, kMsgSize * msg_manager::batch_count);
+#else
+      auto [mac, len] = tnic_api::native_get_attestation(
+          buffs->req.buf, kMsgSize * msg_manager::batch_count);
+#endif
+      /*
       auto [mac, len] =
           hmac_sha256(buffs->req.buf, kMsgSize * msg_manager::batch_count);
+          */
       if (len != _hmac_size) {
         fmt::print("[{}] len ({}) != _hmac_size ({})\n", __PRETTY_FUNCTION__,
                    len, _hmac_size);
@@ -242,17 +417,46 @@ void send_req(int idx, const std::vector<int> &dest_ids, app_context *ctx) {
                               p_get_msg_buf_sz());
     ctx->enqueued_msgs_cnt++;
   }
+  log_audit(ctx);
 }
 
 void flash_batcher(const std::vector<int> &dest_ids, app_context *ctx) {
   // needs to send
   for (auto &dest_id : dest_ids) {
     rpc_buffs *buffs = new rpc_buffs(ctx->rpc);
-    buffs->alloc_req_buf(sizeof(p_msg) * ctx->batcher->cur_idx, ctx->rpc);
-    buffs->alloc_resp_buf(kAckSize, ctx->rpc);
+    buffs->alloc_req_buf(kMsgSize * ctx->batcher->cur_idx + _hmac_size,
+                         ctx->rpc);
+    buffs->alloc_resp_buf(kAckSize + _hmac_size, ctx->rpc);
 
     ::memcpy(buffs->req.buf, ctx->batcher->serialize_batch(),
-             sizeof(p_msg) * ctx->batcher->cur_idx);
+             kMsgSize * ctx->batcher->cur_idx);
+
+#ifdef FPGA
+#warning "FPGA-version is enabled"
+    auto [mac, len] = tnic_api::FPGA_get_attestation(
+        buffs->req.buf, kMsgSize * ctx->batcher->cur_idx);
+#elif SGX
+#warning "SGX-version is enabled"
+    auto [mac, len] = tnic_api::SGX_get_attestation(
+        buffs->req.buf, kMsgSize * msg_manager::batch_count);
+#elif AMD
+#warning "AMDSEV-version is enabled"
+    auto [mac, len] = tnic_api::AMDSEV_get_attestation(
+        buffs->req.buf, kMsgSize * msg_manager::batch_count);
+#else
+    auto [mac, len] = tnic_api::native_get_attestation(
+        buffs->req.buf, kMsgSize * ctx->batcher->cur_idx);
+#endif
+    /*
+  auto [mac, len] =
+      hmac_sha256(buffs->req.buf, kMsgSize * ctx->batcher->cur_idx);
+      */
+    if (len != _hmac_size) {
+      fmt::print("[{}] len ({}) != _hmac_size ({})\n", __PRETTY_FUNCTION__, len,
+                 _hmac_size);
+    }
+    ::memcpy(buffs->req.buf + kMsgSize * ctx->batcher->cur_idx, mac.data(),
+             len);
     // enqueue_req
     ctx->rpc->enqueue_request(ctx->connections[dest_id], kReqPropose,
                               &buffs->req, &buffs->resp, cont_func_prp,
@@ -310,14 +514,43 @@ void leader_func(app_context *ctx,
   }
   fmt::print("{} execute {} reqs\n", __PRETTY_FUNCTION__, FLAGS_reqs_num);
   ctx->rpc->run_event_loop(100);
+  auto start = std::chrono::steady_clock::now();
+  int iterations = FLAGS_reqs_num;
+
   for (auto i = 0ULL; i < FLAGS_reqs_num; i++) {
     send_req(i, followers, ctx);
     poll(ctx);
   }
   flash_batcher(followers, ctx);
   fmt::print("{} polls until the end ...\n", __func__);
-  for (;;)
+  auto &log_handle = ctx->metadata->tlog;
+  for (;;) {
     ctx->rpc->run_event_loop_once();
+    log_audit(ctx);
+    if (ctx->count_replies * msg_manager::batch_count == iterations * 2) {
+      send_req_finito(FLAGS_reqs_num + 1, followers, ctx);
+      ctx->rpc->run_event_loop_once();
+      break;
+    }
+  }
+  for (;;) {
+    log_audit(ctx);
+    ctx->rpc->run_event_loop_once();
+    if (log_handle->get_log_size() == iterations * 2)
+      if (ctx->finished_nodes == 2)
+        break;
+  }
+
+  fmt::print("[{}] ctx->count_replies={}\n", __PRETTY_FUNCTION__,
+             ctx->count_replies);
+  auto end = std::chrono::steady_clock::now();
+  auto duration2 =
+      std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  const std::chrono::duration<double> elapsed_seconds{end - start};
+  fmt::print("[{}] elapsed={}/{} for {} iterations (avg_lat={} sec\t {}us)\n",
+             __PRETTY_FUNCTION__, elapsed_seconds.count(), duration2.count(),
+             iterations, (elapsed_seconds.count() * 1.0) / (iterations * 1.0),
+             ((duration2.count() * 1.0) / (iterations * 1.0)));
 }
 
 void follower_func(app_context *ctx, const std::string &uri) {
@@ -332,8 +565,11 @@ void follower_func(app_context *ctx, const std::string &uri) {
   }
   // flash_batcher(0, ctx);
   fmt::print("{} polls until the end ...\n", __func__);
-  for (;;)
+  for (;;) {
     ctx->rpc->run_event_loop_once();
+    if (ctx->stop)
+      break;
+  }
 }
 
 void proto_func(size_t thread_id, erpc::Nexus *nexus) {
@@ -360,6 +596,7 @@ void proto_func(size_t thread_id, erpc::Nexus *nexus) {
   }
 
   fmt::print("[{}]\tthread_id={} exits.\n", __PRETTY_FUNCTION__, thread_id);
+  delete ctx;
 }
 
 void ctrl_c_handler(int) {
@@ -370,25 +607,169 @@ void ctrl_c_handler(int) {
 bool apply_protocol(std::unique_ptr<p_msg> recv_msg, app_context *ctx,
                     bool last_req) {
   // apply the protocol (deterministic), increase the counter
-  leader_exp_cnt++;
   ctx->metadata->cmt_idx++;
   return true;
 }
+#include <tuple>
+std::tuple<uint32_t, uint32_t, uint32_t>
+decode_print_ctx_leader(const char *ctx_ptr) {
+  // fmt::print("[{}]\n", __func__);
+  auto cmd_ptr = ctx_ptr;
+  bool res = *(reinterpret_cast<const bool *>(cmd_ptr));
+#if 0
+  fmt::print("ack: {}\n", res);
+  fmt::print("\n");
+#endif
+  if (!res) {
+    fmt::print("[{}] ack equals false\n", __PRETTY_FUNCTION__);
+    exit(128);
+  }
+
+  //  fmt::print("output:");
+  auto output_ptr = cmd_ptr + ack_msg::AckSize;
+  uint32_t output_val = *(reinterpret_cast<const uint32_t *>(output_ptr));
+  // fmt::print("{}", output_val);
+  // fmt::print("\n");
+
+  // fmt::print("cmt:");
+  auto *cmt_ptr = cmd_ptr + ack_msg::AckSize + ack_msg::OutSize;
+  uint32_t cmt_val;
+  ::memcpy(&cmt_val, cmt_ptr, sizeof(uint32_t));
+  // fmt::print("{}", cmt_val);
+  // fmt::print("\n");
+
+  // fmt::print("sender:");
+  auto *sender_ptr =
+      cmd_ptr + ack_msg::AckSize + ack_msg::OutSize + sizeof(ack_msg::cmt);
+  uint32_t sender_val = *(reinterpret_cast<const uint32_t *>(sender_ptr));
+  // fmt::print("{}", sender_val);
+  // fmt::print("\n");
+
+  // fmt::print("leader cmd:");
+  auto *org_cmd = sender_ptr + ack_msg::HashSize;
+  if (::memcmp(org_cmd, kDefaultCmd, p_msg::CmdSize) != 0) {
+    fmt::print("[{}] Wrong cmd\n", __PRETTY_FUNCTION__);
+    exit(128);
+  }
+  // fmt::print(" default");
+#if 0
+	for (auto i = 0; i < p_msg::CmdSize; i++) {
+		fmt::print("{}", reinterpret_cast<const char*>(org_cmd)[i]);
+	}
+#endif
+  // fmt::print("\n");
+  return {cmt_val, output_val, sender_val};
+}
+
+void decode_print_ctx(const char *ctx_ptr) {
+  // fmt::print("[{}]\n", __func__);
+  auto cmd_ptr = ctx_ptr;
+  /*
+  fmt::print("cmd:");
+  for (auto i = 0; i < p_msg::CmdSize; i++) {
+    fmt::print("{}", cmd_ptr[i]);
+  }
+  fmt::print("\n");
+
+  fmt::print("output:");
+  */
+  auto output_ptr = cmd_ptr + p_msg::CmdSize;
+  // fmt::print("{}", *(reinterpret_cast<const uint32_t *>(output_ptr)));
+  // fmt::print("\n");
+
+  // fmt::print("msg_cnt:");
+  auto *msg_cnt_ptr = cmd_ptr + p_msg::CmdSize + p_msg::OutSize;
+  // fmt::print("{}", *(reinterpret_cast<const uint32_t *>(msg_cnt_ptr)));
+  // fmt::print("\n");
+}
 
 bool log_audit(app_context *ctx) {
-  // TODO: Implement me!
+#if LOG_AUDIT
+#warning "log-audit is ON"
   /* Keep sequence number of log n plus the 'expected' state after n
    * Send the n to the participant and read from [n, n'] where n' the last entry
    * Then apply the states using the reference implementation to audit the
    * protocol execution
    */
-  auto tail_idx = ctx->tlog->get_log_size();
-  for (auto i = ctx->witness_meta.last_log_seq; i < tail_idx; i++) {
+  auto &log_handle = ctx->metadata->tlog;
+  auto tail_idx = log_handle->get_log_size();
+  if (ctx->metadata->last_state_cmt == tail_idx)
+    return true;
+  /*
+   fmt::print("[{}] ############ START ############ tail_idx={}\n", __func__,
+              tail_idx);
+ */
+  for (auto i = ctx->metadata->last_state_cmt; i < tail_idx; i++) {
+    char *ctx_ptr = nullptr;
+    size_t ctx_sz = 0;
+
+    // check the HMAC
+    ctx->metadata->validate_log_entry(i);
+    log_handle->print_entry_at(i, ctx_ptr, ctx_sz);
     // decode log entry
-    // apply the cmd to the expected state
+    auto res_cmt_output_sender = decode_print_ctx_leader(ctx_ptr);
+    auto cmt_val = std::get<0>(res_cmt_output_sender);
+    auto output_val = std::get<1>(res_cmt_output_sender);
+    auto sender_val = std::get<2>(res_cmt_output_sender);
+
+    ctx->metadata->witness_meta[sender_val].last_log_seq +=
+        msg_manager::batch_count;
     // check if it is expected
+    if ((cmt_val != output_val) ||
+        (cmt_val != ctx->metadata->witness_meta[sender_val].last_log_seq)) {
+      fmt::print("[{}] failed@i={} "
+                 "cmt_val:{}\toutput_val:{}\tctx->metadata->witness_meta[{}]."
+                 "last_log_seq:{}\n",
+                 __PRETTY_FUNCTION__, i, cmt_val, output_val, sender_val,
+                 ctx->metadata->witness_meta[sender_val].last_log_seq);
+      exit(128);
+    }
+    // apply the cmd to the expected state
+    ctx->metadata->last_state_cmt++;
   }
+  /*
+  fmt::print("[{}] ############ END ############ tail_idx={}\n", __func__,
+             tail_idx);
+  */
+#endif
   return true;
+}
+
+void req_handler_finito(erpc::ReqHandle *req_handle,
+                        void *context /* app_context */) {
+  app_context *ctx = reinterpret_cast<app_context *>(context);
+  ctx->stop = true;
+
+  uint8_t *recv_data =
+      reinterpret_cast<uint8_t *>(req_handle->get_req_msgbuf()->buf);
+
+  size_t buf_sz = req_handle->get_req_msgbuf()->get_data_size();
+
+  /* enqueue ack-response */
+  ack_msg ack;
+  ack.sender = ctx->node_id;
+  ack.cmt = ctx->metadata->cmt_idx;
+  ::memcpy(&ack.output, &(ack.cmt), sizeof(uint32_t));
+
+  // also include the original req
+  ::memcpy(&ack.cmd, kDefaultCmd, p_msg::CmdSize);
+
+  auto &resp = req_handle->pre_resp_msgbuf;
+  if (ctx == nullptr) {
+    fmt::print("{} ctx==nullptr \n", __func__);
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(10000ms);
+  }
+  if (ctx->rpc == nullptr) {
+    fmt::print("ctx->rpc==nullptr\n", __func__);
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(10000ms);
+  }
+
+  // sign message before transmission
+  ctx->rpc->resize_msg_buffer(&resp, f_get_msg_buf_sz() + _hmac_size);
+  memcpy_ack_into_buffer(ack, resp.buf);
+  ctx->rpc->enqueue_response(req_handle, &resp);
 }
 
 void req_handler_prp(erpc::ReqHandle *req_handle,
@@ -403,18 +784,36 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
 
   auto batch_sz = (buf_sz - _hmac_size) / kMsgSize;
   if ((buf_sz - _hmac_size) % kMsgSize != 0) {
-    fmt::print("[{}] something seems wrong with buf_sz {} (kMsgSize {})\n",
-               __PRETTY_FUNCTION__, buf_sz, kMsgSize);
+    fmt::print(
+        "[{}] something seems wrong (count={}) with buf_sz {} (kMsgSize {})\n",
+        __PRETTY_FUNCTION__, count, buf_sz, kMsgSize);
   }
 
   // validate before execution (TNIC)
-  auto [calc_mac, len] = hmac_sha256(recv_data, (buf_sz - _hmac_size));
+#ifdef FPGA
+#warning "FPGA-version is enabled"
+  auto [calc_mac, len] =
+      tnic_api::FPGA_get_attestation(recv_data, (buf_sz - _hmac_size));
+#elif SGX
+#warning "SGX-version is enabled"
+  auto [calc_mac, len] =
+      tnic_api::SGX_get_attestation(recv_data, (buf_sz - _hmac_size));
+#elif AMD
+#warning "AMDSEV-version is enabled"
+  auto [calc_mac, len] =
+      tnic_api::AMDSEV_get_attestation(recv_data, (buf_sz - _hmac_size));
+#else
+  auto [calc_mac, len] =
+      tnic_api::native_get_attestation(recv_data, (buf_sz - _hmac_size));
+#endif
+  // auto [calc_mac, len] = hmac_sha256(recv_data, (buf_sz - _hmac_size));
   if (::memcmp(recv_data + (buf_sz - _hmac_size), calc_mac.data(), len) != 0) {
     fmt::print("[{}] error on HMAC validation\n", __PRETTY_FUNCTION__);
   }
 
   // log the action
-  auto ctx_data = recv_data;
+  char *ctx_data = reinterpret_cast<char *>(recv_data);
+  decode_print_ctx(ctx_data);
   auto ctx_data_sz = buf_sz - _hmac_size;
   auto authenticator = recv_data + (buf_sz - _hmac_size);
   ctx->metadata->log(reinterpret_cast<char *>(ctx_data), ctx_data_sz,
@@ -436,7 +835,6 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
     fmt::print("{} final count={}\n", __func__, count);
   count++;
 
-  // TODO: also include the original req
   /* enqueue ack-response */
   ack_msg ack;
   ack.sender = ctx->node_id;
@@ -444,8 +842,27 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   ::memcpy(&ack.output, &(ack.cmt), sizeof(uint32_t));
   ::memcpy(&ack.ack, &(ok), sizeof(bool));
 
+  // also include the original req
+  ::memcpy(&ack.cmd, kDefaultCmd, p_msg::CmdSize);
+
   // HMAC-state here (TNIC but local, no sending)
-  auto [state_mac, sz] = hmac_sha256(ack.state, ack_msg::HashSize);
+#ifdef FPGA
+#warning "FPGA-version is enabled"
+  auto [state_mac, sz] =
+      tnic_api::FPGA_get_attestation(ack.state, ack_msg::HashSize);
+#elif SGX
+#warning "SGX-version is enabled"
+  auto [state_mac, sz] =
+      tnic_api::SGX_get_attestation(ack.state, ack_msg::HashSize);
+#elif AMD
+#warning "AMDSEV-version is enabled"
+  auto [state_mac, sz] =
+      tnic_api::AMDSEV_get_attestation(ack.state, ack_msg::HashSize);
+#else
+  auto [state_mac, sz] =
+      tnic_api::native_get_attestation(ack.state, ack_msg::HashSize);
+#endif
+  //  auto [state_mac, sz] = hmac_sha256(ack.state, ack_msg::HashSize);
   ::memcpy(ack.state, state_mac.data(), ack_msg::HashSize);
   if (ack.sender == 1) {
     ::memcpy(ctx->metadata->f1_last_state, state_mac.data(), ack_msg::HashSize);
@@ -468,7 +885,23 @@ void req_handler_prp(erpc::ReqHandle *req_handle,
   // sign message before transmission
   ctx->rpc->resize_msg_buffer(&resp, f_get_msg_buf_sz() + _hmac_size);
   memcpy_ack_into_buffer(ack, resp.buf);
-  auto [mac, hlen] = hmac_sha256(resp.buf, f_get_msg_buf_sz());
+#ifdef FPGA
+#warning "FPGA-version is enabled"
+  auto [mac, hlen] =
+      tnic_api::FPGA_get_attestation(resp.buf, f_get_msg_buf_sz());
+#elif SGX
+#warning "SGX-version is enabled"
+  auto [mac, hlen] =
+      tnic_api::SGX_get_attestation(resp.buf, f_get_msg_buf_sz());
+#elif AMD
+#warning "AMDSEV-version is enabled"
+  auto [mac, hlen] =
+      tnic_api::AMDSEV_get_attestation(resp.buf, f_get_msg_buf_sz());
+#else
+  auto [mac, hlen] =
+      tnic_api::native_get_attestation(resp.buf, f_get_msg_buf_sz());
+#endif
+  // auto [mac, hlen] = hmac_sha256(resp.buf, f_get_msg_buf_sz());
   if (hlen != _hmac_size) {
     fmt::print("[{}] len ({}) != _hmac_size ({})\n", __PRETTY_FUNCTION__, hlen,
                _hmac_size);
@@ -502,6 +935,7 @@ int main(int args, char *argv[]) {
 
   erpc::Nexus nexus(server_uri, 0, 0);
   nexus.register_req_func(kReqPropose, req_handler_prp);
+  nexus.register_req_func(kReqTerminate, req_handler_finito);
 
   std::vector<std::thread> threads;
   for (size_t i = 0; i < num_threads; i++) {

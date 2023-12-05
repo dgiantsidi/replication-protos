@@ -1,4 +1,4 @@
-#include "signed_msg.h"
+#include "crypto/signed_msg.h"
 #include <fmt/printf.h>
 
 struct state {
@@ -41,7 +41,8 @@ struct cmt_msg {
 };
 
 struct msg_manager {
-  static constexpr size_t batch_count = 1;
+  static constexpr size_t batch_count =
+      1; // TODO: validation fails with batching
   static constexpr size_t message_size =
       (sizeof(msg) + sizeof(msg) + sizeof(uint32_t) + 2 * sizeof(msg));
   msg_manager() {
@@ -65,18 +66,21 @@ struct msg_manager {
   }
 
   std::tuple<size_t, std::unique_ptr<uint8_t[]>> attest() {
-    size_t alloc_sz = (signature_size * sizeof(uint8_t) + sizeof(uint64_t) +
-                       (batch_count * message_size) * sizeof(uint8_t)) /
-                      sizeof(uint8_t);
+    size_t alloc_sz =
+        (HMAC_N::signature_size * sizeof(uint8_t) + sizeof(uint64_t) +
+         (batch_count * message_size) * sizeof(uint8_t)) /
+        sizeof(uint8_t);
+
 #ifdef DEBUG_PRINT
     fmt::print("[{}] alloc {} bytes\n", __func__, alloc_sz);
 #endif
     auto buff = std::make_unique<uint8_t[]>(alloc_sz);
 
     // TODO: assign the counter
-    bool ret = sign_msg(reinterpret_cast<uint8_t *>(buffer.get()),
-                        (batch_count * message_size),
-                        reinterpret_cast<uint8_t *>(privateKey), buff.get());
+    char *privateKey = nullptr;
+    bool ret = HMAC_N::sign_msg(
+        reinterpret_cast<uint8_t *>(buffer.get()), (batch_count * message_size),
+        reinterpret_cast<uint8_t *>(privateKey), buff.get());
     if (!ret) {
       fmt::print("[{}] ERROR: signing w/ priv key failed.\n",
                  __PRETTY_FUNCTION__);
@@ -92,7 +96,9 @@ struct msg_manager {
 #ifdef DEBUG_PRINT
     fmt::print("***** {} start *****\n", __func__);
 #endif
-    auto ret = verify_get_msg(data, reinterpret_cast<uint8_t *>(publicKey));
+    char *publicKey = nullptr;
+    auto ret =
+        HMAC_N::verify_get_msg(data, reinterpret_cast<uint8_t *>(publicKey));
 #ifdef DEBUG_PRINT
     fmt::print("***** {} end *****\n", __func__);
 #endif
@@ -107,16 +113,18 @@ struct msg_manager {
   }
 
   static std::unique_ptr<uint8_t[]> deserialize(uint8_t *buf, size_t buf_sz) {
-    static constexpr size_t alloc_sz =
-        (signature_size * sizeof(uint8_t) + sizeof(uint64_t) +
+    size_t alloc_sz =
+        (HMAC_N::signature_size * sizeof(uint8_t) + sizeof(uint64_t) +
          (batch_count * message_size) * sizeof(uint8_t)) /
         sizeof(uint8_t);
+#ifdef DEBUG_PRINT
     if ((buf_sz != message_size * batch_count) && (buf_sz != alloc_sz))
       fmt::print(
           "[{}] WARNING: buf_sz ({}) != batch_count*message_size ({}) and != "
           "alloc_sz ({})\n",
           __PRETTY_FUNCTION__, buf_sz, (message_size * batch_count), alloc_sz);
-    auto data = std::make_unique<uint8_t[]>(buf_sz);
+#endif
+auto   data = std::make_unique<uint8_t[]>(buf_sz);
     ::memcpy(data.get(), buf, buf_sz);
     return std::move(data);
   }
