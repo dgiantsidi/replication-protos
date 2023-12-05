@@ -1,7 +1,6 @@
 #include <chrono>
 #include <fmt/printf.h>
 
-
 /* the batched message */
 struct msg_manager {
   static constexpr size_t batch_count = 16;
@@ -40,7 +39,6 @@ struct msg_manager {
     ::memcpy(data.get(), buf, buf_sz);
     return std::move(data);
   }
-
 
   std::unique_ptr<uint8_t[]> buffer;
   uint32_t cur_idx = 0;
