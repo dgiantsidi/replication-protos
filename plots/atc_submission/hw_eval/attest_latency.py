@@ -10,7 +10,7 @@ plt.rcParams['hatch.linewidth'] = 2.5
 palette = sns.color_palette("pastel")
 
 
-plt.rcParams["figure.figsize"] = (21, 8)
+plt.rcParams["figure.figsize"] = (23, 8)
 plt.rcParams.update({'font.size': 60})
 
 fig, ax = plt.subplots()
@@ -19,7 +19,7 @@ fig, ax = plt.subplots()
 lat_64 = [10.6865, 31, 45.3, 90, 23]
 lat_128 = [10.7295, 31, 46.5, 90, 23]
 
-envs = ['CPU-1', 'CPU-2', 'SGX', 'AMD-sev', 'U280']
+envs = ['CPU-1', 'CPU-2', 'SGX', 'AMD-sev', 'FPGA']
 x = np.arange(len(envs))
 low = int(min(lat_64))
 high = int(max(lat_64))
@@ -30,7 +30,7 @@ x3 = [r+width for r in x2]
 ax.bar(x, lat_64, width, color= palette[3], hatch="o", edgecolor="black", label="64B")
 ax.bar(x2, lat_128, width, color= palette[4], hatch="X", edgecolor="black", label="128B")
 #ax.bar(x3, sha_lat_256, width, color= palette[2], hatch="-", edgecolor="black", label="1K")
-ax.set_ylabel("Latency (ns)")
+ax.set_ylabel("Latency (us)")
 ax.set_xticks(x2)
 ax.set_xticklabels(envs)
 #ax.set_title("")
