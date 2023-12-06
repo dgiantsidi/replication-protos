@@ -10,8 +10,8 @@ plt.rcParams['hatch.linewidth'] = 2.5
 palette = sns.color_palette("pastel")
 
 
-plt.rcParams["figure.figsize"] = (13, 8)
-plt.rcParams.update({'font.size': 40})
+plt.rcParams["figure.figsize"] = (13, 12)
+plt.rcParams.update({'font.size': 60})
 
 fig, ax = plt.subplots()
 
@@ -30,25 +30,19 @@ overheads_BFT = [
 speedup_hw = [
         5.414972144,
 4.589759135,
-3.59385579,
-0,
-0,
-0,
-0,
-0,
-0]
+3.59385579]
 
-envs = ['128', '256', '512', '1K', '2K', '4K', '8K', '16K', '32K']
+envs = ['128', '256', '512']
 
 x = np.arange(len(envs))
 low = int(min(speedup_hw))
-high = int(max(overheads_BFT))
+high = int(max(speedup_hw))
 plt.ylim([0, math.ceil(high+0.5*(high-low))])
 width = 0.30
-x2 = [r+width for r in x]
-ax.bar(x, overheads_BFT, width, color= palette[3], hatch="o", edgecolor="black")
-#ax.bar(x2, speedup_hw, width, color= palette[6], hatch="*", edgecolor="black", label="Speedup due to TNIC")
-ax.set_ylabel("Slowdown")
+#x2 = [r+width for r in x]
+#ax.bar(x, overheads_BFT, width, color= palette[3], hatch="o", edgecolor="black", label="Overheads due to BFT")
+ax.bar(x, speedup_hw, width, color= palette[6], hatch="*", edgecolor="black", label="Speedup due to TNIC")
+ax.set_ylabel("Speedup")
 ax.set_xticks(x)
 ax.set_xlabel("packet size (B)")
 ax.set_xticklabels(envs)
@@ -56,5 +50,5 @@ ax.set_xticklabels(envs)
 plt.tight_layout()
 
 #ax.legend(loc="upper right", bbox_to_anchor=(1.01, 1.04))
-plt.savefig('tnic_overheads.pdf',dpi=400)
+plt.savefig('tnic_speedup.pdf',dpi=400)
 #plt.show()
