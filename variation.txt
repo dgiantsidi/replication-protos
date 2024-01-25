@@ -1,0 +1,31 @@
+➜  digital_signatures git:(amd-sev) ✗ ./client          
+[connect_to_the_server] waiting for new connections ..
+accept succeeded on socket 5 4 ..
+[client] connect_to_the_server sending_fd=3 fd=5
+RESULT: 215379182 and latency=215.379us 
+➜  digital_signatures git:(amd-sev) ✗ ./client 
+[connect_to_the_server] waiting for new connections ..
+accept succeeded on socket 5 4 ..
+[client] connect_to_the_server sending_fd=3 fd=5
+RESULT: 584871982 and latency=584.872us 
+➜  digital_signatures git:(amd-sev) ✗ ./client 
+[connect_to_the_server] waiting for new connections ..
+accept succeeded on socket 5 4 ..
+[client] connect_to_the_server sending_fd=3 fd=5
+RESULT: 94140605 and latency=94.1406us 
+➜  digital_signatures git:(amd-sev) ✗ ./client          
+[connect_to_the_server] waiting for new connections ..
+accept succeeded on socket 5 4 ..
+[client] connect_to_the_server sending_fd=3 fd=5
+RESULT: 91488038 and latency=91.488us
+➜  digital_signatures git:(amd-sev) ✗ ./client 
+[connect_to_the_server] waiting for new connections ..
+accept succeeded on socket 5 4 ..
+[client] connect_to_the_server sending_fd=3 fd=5
+RESULT: 90155555 and latency=90.1556us 
+➜  digital_signatures git:(amd-sev) ✗ ./client 
+[connect_to_the_server] waiting for new connections ..
+accept succeeded on socket 5 4 ..
+[client] connect_to_the_server sending_fd=3 fd=5
+RESULT: 91329249 and latency=91.3292us 
+
