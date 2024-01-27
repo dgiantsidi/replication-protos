@@ -10,8 +10,8 @@ plt.rcParams['hatch.linewidth'] = 2.5
 palette = sns.color_palette("pastel")
 
 
-plt.rcParams["figure.figsize"] = (6, 3.4)
-plt.rcParams.update({'font.size': 15})
+plt.rcParams["figure.figsize"] = (5.5, 2.7)
+plt.rcParams.update({'font.size': 17})
 
 fig, ax = plt.subplots()
 
@@ -43,17 +43,17 @@ envs = ['128', '256', '512', '1K', '2K', '4K', '8K', '16K', '32K']
 x = np.arange(len(envs))
 low = int(min(speedup_hw))
 high = int(max(overheads_BFT))
-plt.ylim([0, math.ceil(high+0.5*(high-low))])
-width = 0.50
+plt.ylim([0, math.ceil(high+0.2*(high-low))])
+width = 0.30
 x2 = [r+width for r in x]
 ax.bar(x, overheads_BFT, width, color= palette[3], edgecolor="black")
 #ax.bar(x2, speedup_hw, width, color= palette[6], hatch="*", edgecolor="black", label="Speedup due to TNIC")
 
 for k, y, p in zip(x, overheads_BFT, overheads_BFT):
-     s = str(f'{p:.0f}')+ "x"
-     plt.text(k, y, s, ha='center', va='bottom', fontsize=12, weight="bold")
+     s = "-" + str(f'{p:.0f}')+ "x"
+     plt.text(k, y, s, ha='center', va='bottom', fontsize=15, weight="bold", c='red')
 
-plt.text(4.1, math.ceil(high+0.4*(high-low)), "Lower is better ↓", ha='center', va='center', fontsize=15, weight='bold', c='blue')
+#plt.text(4.1, math.ceil(high+0.4*(high-low)), "Lower is better ↓", ha='center', va='center', fontsize=15, weight='bold', c='blue')
 ax.set_ylabel("Slowdown")
 ax.set_xticks(x)
 ax.set_xlabel("packet size (B)")

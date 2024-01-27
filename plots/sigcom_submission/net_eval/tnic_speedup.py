@@ -10,8 +10,8 @@ plt.rcParams['hatch.linewidth'] = 2.5
 palette = sns.color_palette("pastel")
 
 
-plt.rcParams["figure.figsize"] = (3.5, 3.4)
-plt.rcParams.update({'font.size': 15})
+plt.rcParams["figure.figsize"] = (3.5, 3.98)
+plt.rcParams.update({'font.size': 25})
 
 fig, ax = plt.subplots()
 
@@ -38,16 +38,17 @@ x = np.arange(len(envs))
 low = int(min(speedup_hw))
 high = int(max(speedup_hw))
 plt.ylim([0, math.ceil(high+0.9*(high-low))])
-width = 0.30
+width = 0.50
 #x2 = [r+width for r in x]
 #ax.bar(x, overheads_BFT, width, color= palette[3], hatch="o", edgecolor="black", label="Overheads due to BFT")
 ax.bar(x, speedup_hw, width, color= palette[8], edgecolor="black", label="Speedup due to TNIC")
 
 for k, y, p in zip(x, speedup_hw, speedup_hw):
-      s = str(f'{p:.1f}')+ "x"
-      plt.text(k, y, s, ha='center', va='bottom', fontsize=12, weight="bold")
+      s = str(f'{p:.0f}')+ "x"
+      plt.text(k, y, s, ha='center', va='bottom', fontsize=25, weight="bold", c="blue")
 
-plt.text(1, high*1.3, "Higher is better↑", ha='center', va='center', fontsize=15, weight='bold', c='blue')
+
+#plt.text(1, high*1.3, "Higher is better↑", ha='center', va='center', fontsize=15, weight='bold', c='blue')
 
 ax.set_ylabel("Speedup")
 ax.set_xticks(x)

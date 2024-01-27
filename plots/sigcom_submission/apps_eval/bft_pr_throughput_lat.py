@@ -15,7 +15,7 @@ plt.rcParams['hatch.linewidth'] = 2.5
 palette = sns.color_palette("pastel")
 
 
-plt.rcParams["figure.figsize"] = (5.5, 3.4)
+plt.rcParams["figure.figsize"] = (6.5, 2.7)
 plt.rcParams.update({'font.size': 15})
 
 x = ['SSL-lib', 'SSL-server', 'SGX', 'AMD-sev', 'TNIC']

@@ -21,7 +21,7 @@ plt.rcParams['figure.figsize'] = [15, 4]
 plt.rcParams["figure.autolayout"] = True
 
 #plt.rcParams["figure.figsize"] = COLUMN_FIGSIZE
-plt.rcParams.update({'font.size': 15})
+plt.rcParams.update({'font.size': 17})
 
 
 
@@ -95,7 +95,7 @@ fig, ax1 = plt.subplots()
 x1 = np.arange(len(x))
 low = 0
 high = 200
-plt.ylim([0, 500])
+plt.ylim([0, 550])
 width1 = 1.4/len(x)
 χ1 = [k-3*width1 for k in x1]
 x2 = [r+width1 for r in x1]
@@ -108,38 +108,41 @@ ax1.bar(x2, sw_RDMA, width=width1, color= palette[4], hatch="\\", edgecolor="bla
 ax1.bar(x3, tnic_latency, width=width1, color= palette[2], hatch="-", edgecolor="black", label="TNIC")
 ax1.bar(x4, sw_RDMA_sgx_latency, width=width1, color= palette[3], hatch="/", edgecolor="black", label="DRCT-IO-att")
 ax1.bar(x5, tnic_latency_sender, width=width1, color= palette[1], hatch="*", edgecolor="black", label="TNIC-att")
-empty=[0, 0, 0, 0, 0, 0, 0, 0, 0]
-ax1.bar(x6, empty, width1*4, color= palette[7], hatch="+", edgecolor="black")
+#empty=[0, 0, 0, 0, 0, 0, 0, 0, 0]
+#ax1.bar(x6, empty, width1*4, color= palette[7], hatch="+", edgecolor="black")
 
 
   #   plt.text(rect.get_x() + rect.get_width() / 2.0, height, f'{height:.0f}', ha='center', va='bottom')
 for k, y, p in zip(x1, hw_rdma, hw_rdma):
-    s = " " + f'{p:.0f}'
-    plt.text(k, y, s, ha='center', va='bottom', fontsize=12, weight="bold", rotation=90)
+    s = " " + f'{p:.0f}'+"us"
+    plt.text(k, y, s, ha='center', va='bottom', fontsize=15, weight="bold", rotation=90)
 
 for k, y, p in zip(x2, sw_RDMA, sw_RDMA):
-    s = " " + f'{p:.0f}'
-    plt.text(k, y, s, ha='center', va='bottom', fontsize=12, weight="bold", rotation=90)
+    s = " " + f'{p:.0f}'+"us"
+    plt.text(k, y, s, ha='center', va='bottom', fontsize=15, weight="bold", rotation=90)
 
 for k, y, p in zip(x3, tnic_latency, tnic_latency):
-    s = " " + f'{p:.0f}'
-    plt.text(k, y, s, ha='center', va='bottom', fontsize=12, weight="bold", rotation=90)
+    s = " " + f'{p:.0f}' +"us"
+    plt.text(k, y, s, ha='center', va='bottom', fontsize=15, weight="bold", rotation=90)
 
 for k, y, p in zip(x4, sw_RDMA_sgx_latency, sw_RDMA_sgx_latency):
-    s = " " + f'{p:.0f}'
+    s = " " + f'{p:.0f}'+"us"
     if p != 0:
-        plt.text(k, y, s, ha='center', va='bottom', fontsize=12, weight="bold", rotation=90)
+        plt.text(k, y, s, ha='center', va='bottom', fontsize=15, weight="bold", rotation=90)
     else:
-        plt.text(k, y, "X", ha='center', va='bottom', fontsize=12, weight="bold", c='r')
+        plt.text(k, y, "X", ha='center', va='bottom', fontsize=15, weight="bold", c='r')
 
 for k, y, p in zip(x5, tnic_latency_sender, tnic_latency_sender):
-    s = " " + f'{p:.0f}'
-    plt.text(k, y, s, ha='center', va='bottom', fontsize=12, weight="bold", rotation=90)
+    s = " " + f'{p:.0f}'+"us"
+    plt.text(k, y, s, ha='center', va='bottom', fontsize=15, weight="bold", rotation=90)
 #ax1.plot(x_axis, hw_rdma, linestyle='--', color=palette[9], marker="X", markersize=20, label="RDMA-hw")
 #ax1.plot(x_axis, sw_RDMA, linestyle='--', color=palette[0], marker="8", markersize=20, label="D-I/O")
 #ax1.plot(x_axis, tnic_latency, linestyle='--', color=palette[3], marker=">", markersize=20, label="TNIC")
 #ax1.plot(x_axis, sw_RDMA_sgx_latency, linestyle='--', color=palette[2], marker="o", markersize=20, label="D-I/O w/ A.")
 #ax1.plot(x_axis, tnic_latency_sender, linestyle='--', color=palette[5], marker="s", markersize=20, label="TNIC w/ A.")
+
+plt.text(4.1, 500, "Lower is better ↓", ha='center', va='center', fontsize=17, weight='bold', c='blue')
+
 
 #ax1.set_title('Latency (us)')
 #ax1.set_yscale('log')
@@ -150,6 +153,6 @@ ax1.set_xticklabels(x)
 plt.tight_layout()
 #plt.legend(loc='best', bbox_to_anchor=(0.55, 0.7, 0.4, 0.4), ncol=3, borderpad=0.01, columnspacing=0.05)
 #plt.legend(loc='best', bbox_to_anchor=(0.87, 0.55), ncol=2, borderpad=0.01, columnspacing=0.05)
-plt.legend(loc='best', ncol=5, borderpad=0.02, columnspacing=0.2, bbox_to_anchor=(0.6, .98))
+plt.legend(loc='best', ncol=2, borderpad=0.5, columnspacing=0.2, bbox_to_anchor=(0.33, .98))
 #plt.legend(loc='best', bbox_to_anchor=(0.55, 0.2), ncol=1, borderpad=0.01, columnspacing=0.05)
 plt.savefig('rpc_lat.pdf',dpi=400)
