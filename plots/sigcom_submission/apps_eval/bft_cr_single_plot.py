@@ -15,8 +15,8 @@ plt.rcParams['hatch.linewidth'] = 2.5
 palette = sns.color_palette("pastel")
 
 
-plt.rcParams["figure.figsize"] = (6.5, 2.7)
-plt.rcParams.update({'font.size': 15})
+plt.rcParams["figure.figsize"] = (9, 4)
+plt.rcParams.update({'font.size': 20})
 
 x = ['SSL-lib', 'SSL-server', 'SGX', 'AMD-sev', 'TNIC']
 x_axis = np.arange(len(x))
@@ -47,7 +47,7 @@ ax1.bar(x_axis, throughput, width, color=palette[9], hatch="X", edgecolor='black
 #ax1.plot(x_axis, tcp_nat_tps, linestyle='--', color=palette[3], marker=">", markersize=20, label="TCP w/o SGX")
 for k, y, p in zip(x_axis, throughput, latency):
       s = " " + str(f'{p:.2f}')+ "us"
-      plt.text(k, y, s, ha='center', va='bottom', fontsize=12, weight="bold", rotation=90)
+      plt.text(k, y, s, ha='center', va='bottom', fontsize=15, weight="bold", rotation=90)
 
 plt.yscale("log")
 
@@ -77,7 +77,7 @@ ax1.set_xticklabels(x, ha='center')
 #ax2.set_title('Latency')
 
 #fig.suptitle('Different types of oscillations', fontsize=16)
-#plt.legend()
+plt.legend()
 #plt.show()
 plt.tight_layout()
 

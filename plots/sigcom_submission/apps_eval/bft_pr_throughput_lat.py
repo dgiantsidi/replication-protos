@@ -15,8 +15,8 @@ plt.rcParams['hatch.linewidth'] = 2.5
 palette = sns.color_palette("pastel")
 
 
-plt.rcParams["figure.figsize"] = (6.5, 2.7)
-plt.rcParams.update({'font.size': 15})
+plt.rcParams["figure.figsize"] = (9, 4)
+plt.rcParams.update({'font.size': 20})
 
 x = ['SSL-lib', 'SSL-server', 'SGX', 'AMD-sev', 'TNIC']
 x_axis = np.arange(len(x))
@@ -70,11 +70,11 @@ ax1.bar(x_axis2, throughput_audit, width, hatch='--', color=palette[0], label="w
 plt.ylim([0, 10000000])
 for k, y, p in zip(x_axis, throughput_no_audit, latency_no_audit):
       s = " " + str(f'{p:.0f}')+ "us"
-      plt.text(k, y, s, ha='center', va='bottom', fontsize=12, weight="bold", rotation=90)
+      plt.text(k, y, s, ha='center', va='bottom', fontsize=15, weight="bold", rotation=90)
 
 for k, y, p in zip(x_axis2, throughput_audit, latency_audit):
       s = " " + str(f'{p:.0f}')+ "us"
-      plt.text(k, y, s, ha='center', va='bottom', fontsize=12, weight="bold", rotation=90)
+      plt.text(k, y, s, ha='center', va='bottom', fontsize=15, weight="bold", rotation=90)
 
 
 #ax1.set_title('kOp/s')

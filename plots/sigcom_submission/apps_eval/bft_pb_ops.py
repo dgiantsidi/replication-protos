@@ -10,8 +10,8 @@ plt.rcParams['hatch.linewidth'] = 2.5
 palette = sns.color_palette("pastel")
 
 
-plt.rcParams["figure.figsize"] = (6.5, 3.4)
-plt.rcParams.update({'font.size': 15})
+plt.rcParams["figure.figsize"] = (9, 4)
+plt.rcParams.update({'font.size': 20})
 
 fig, ax = plt.subplots()
 
@@ -79,15 +79,15 @@ ax.bar(x3, throughput_batch_16, width, color= palette[8], hatch="-", edgecolor="
 
 for k, y, p in zip(x, throughput_batch_1, latency_batch_1):
        s = " " + str(f'{p:.1f}')+ "us"
-       plt.text(k, y, s, ha='center', va='bottom', fontsize=12, weight="bold", rotation=90)
+       plt.text(k, y, s, ha='center', va='bottom', fontsize=15, weight="bold", rotation=90)
 
 for k, y, p in zip(x2, throughput_batch_8, latency_batch_8):
        s = " " + str(f'{p:.1f}')+ "us"
-       plt.text(k, y, s, ha='center', va='bottom', fontsize=12, weight="bold", rotation=90)
+       plt.text(k, y, s, ha='center', va='bottom', fontsize=15, weight="bold", rotation=90)
 
 for k, y, p in zip(x3, throughput_batch_16, latency_batch_16):
        s = " " + str(f'{p:.1f}')+ "us"
-       plt.text(k, y, s, ha='center', va='bottom', fontsize=12, weight="bold", rotation=90)
+       plt.text(k, y, s, ha='center', va='bottom', fontsize=15, weight="bold", rotation=90)
 
 ax.set_ylabel("kOp/s")
 ax.set_xticks(x2)

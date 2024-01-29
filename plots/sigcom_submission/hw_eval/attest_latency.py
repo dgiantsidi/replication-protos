@@ -10,9 +10,9 @@ plt.rcParams['hatch.linewidth'] = 2.5
 palette = sns.color_palette("pastel")
 
 COLUMN_FIGSIZE = (6.5, 3.4)
-plt.rcParams["figure.figsize"] = (6, 2.7)
+plt.rcParams["figure.figsize"] = (7.4, 3)
 #fig = plt.figure(figsize=COLUMN_FIGSIZE)
-plt.rcParams.update({'font.size': 15})
+plt.rcParams.update({'font.size': 20})
 
 fig, ax = plt.subplots()
 
@@ -36,12 +36,12 @@ ax.bar(x2, lat_128, width, color= palette[4], hatch="X", edgecolor="black", labe
 for x, y, p in zip(x, lat_64, lat_64):
     #plt.text(x, y, p, f{p:.0f}, ha='center', va='bottom')
     s = " " + f'{p:.0f}' + "us"
-    plt.text(x, y, s, ha='center', va='bottom', fontsize=12, weight="bold", rotation=90)
+    plt.text(x, y, s, ha='center', va='bottom', fontsize=15, weight="bold", rotation=90)
 
 for x, y, p in zip(x2, lat_128, lat_128):
     #plt.text(x, y, p, f{p:.0f}, ha='center', va='bottom')
     s = " " + f'{p:.0f}' + "us"
-    plt.text(x, y, s, ha='center', va='bottom', fontsize=12, weight="bold", rotation=90)
+    plt.text(x, y, s, ha='center', va='bottom', fontsize=15, weight="bold", rotation=90)
 
 #ax.bar(x3, sha_lat_256, width, color= palette[2], hatch="-", edgecolor="black", label="1K")
 ax.set_ylabel("Latency (us)")

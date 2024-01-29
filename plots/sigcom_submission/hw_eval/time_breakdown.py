@@ -14,8 +14,8 @@ COLUMN_FIGSIZE = (6.5, 3.4)
 #plt.rcParams["figure.figsize"] = (21, 8)
 #plt.rcParams.update({'font.size': 60})
 fig = plt.figure(figsize=COLUMN_FIGSIZE)
-plt.rcParams.update({'font.size': 15})
-plt.rcParams["figure.figsize"] = (6, 2.7)
+plt.rcParams.update({'font.size': 20})
+plt.rcParams["figure.figsize"] = (7.4, 3)
 
 
 

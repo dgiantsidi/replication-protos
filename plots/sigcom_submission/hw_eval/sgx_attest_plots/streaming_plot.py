@@ -11,11 +11,11 @@ import statistics
 plt.rcParams['hatch.linewidth'] = 2.5
 palette = sns.color_palette("pastel")
 
-COLUMN_FIGSIZE = (6, 2.7)
+COLUMN_FIGSIZE = (7.4, 3)
 fig = plt.figure(figsize=COLUMN_FIGSIZE)
 
 #plt.rcParams["figure.figsize"] = COLUMN_FIGSIZE
-plt.rcParams.update({'font.size': 15})
+plt.rcParams.update({'font.size': 20})
 
 
 #define custom function
@@ -51,7 +51,11 @@ for step in range(50, 350, 50):
     plt.plot(x[start:step], y_scone[start:step], marker = 'X', c = 'b', label="SGX", linestyle = 'dotted', ms = 12)
     plt.plot(x[start:step], y[start:step], marker = 'o', c = 'g', label="SGX-emtpy", linestyle = 'dotted', ms = 12)
     plt.plot(x[start:step], y_normal[start:step], marker = '*', c = 'r', label="Intel-x86", linestyle = 'dotted', ms = 12)
-    plt.legend(loc='upper center', bbox_to_anchor=(0.3, 0.8, 0.4, 0.4), ncol=3, fontsize = 15, frameon=True, borderpad=0.1, columnspacing=1)
+    plt.legend(loc='upper center', bbox_to_anchor=(0.3, 0.8, 0.4, 0.4), ncol=3, fontsize = 20, frameon=True, borderpad=0.1, columnspacing=1)
+    labels = [i for i in range(0, 50)]
+    print(start)
+    print(step)
+    plt.xticks([])
     print(g_mean(y_scone[start:step]))
            # (ncol=3, bbox_to_anchor=(0.2, 0.9))
 #   plt.show()
