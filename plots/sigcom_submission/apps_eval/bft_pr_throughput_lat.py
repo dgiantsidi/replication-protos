@@ -67,7 +67,7 @@ ax1.bar(x_axis2, throughput_audit, width, hatch='--', color=palette[0], label="w
 #ax1.plot(x_axis, eRPC_nat_tps, linestyle='--', color=palette[2], marker="o", markersize=20, label="eRPC w/o SGX")
 #ax1.plot(x_axis, tcp_nat_tps, linestyle='--', color=palette[3], marker=">", markersize=20, label="TCP w/o SGX")
 
-plt.ylim([0, 10000000])
+plt.ylim([0, 5000])
 for k, y, p in zip(x_axis, throughput_no_audit, latency_no_audit):
       s = " " + str(f'{p:.0f}')+ "us"
       plt.text(k, y, s, ha='center', va='bottom', fontsize=15, weight="bold", rotation=90)
