@@ -16,8 +16,8 @@ att_kernel_lut_util = 2.62
 total_lut_util = [base_lut_util + (int(num_kernels) * att_kernel_lut_util) for num_kernels in x]
 print("Total LUT util: ", total_lut_util)
 
-base_bram_util = 3.46
-att_kernel_bram_util = 1.05
+base_bram_util = 2.62
+att_kernel_bram_util = 0.835
 total_bram_util = [base_bram_util + (int(num_kernels) * att_kernel_bram_util) for num_kernels in x]
 print("Totla BRAM util: ", total_bram_util)
 

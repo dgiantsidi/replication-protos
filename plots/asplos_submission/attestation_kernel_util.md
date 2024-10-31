@@ -16,8 +16,8 @@ RAMB36 is the most used individual resource of the attestation kernel. A RAMB18 
 
 - RAMB36 + URAM capacity: 72576k + 276480k = 349056k
 - Attestation kernel RAMB36 usage: 2916k/72576k = 4.02%
-- Whole design without attestation kernel total BRAM usage: 12060k/349056k = 3.46%
-- Attestation kernel total BRAM usage: 2916k/276480k = 1.05%
+- Whole design without attestation kernel total BRAM usage: 9144k/349056k = 2.62%
+- Attestation kernel total BRAM usage: 2916k/349056k = 0.835%
 
 BRAM usage is not the limiting factor for how many attestation kernels can fit on the FPGA.
 
