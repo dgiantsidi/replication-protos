@@ -21,10 +21,10 @@ RAMB36 is the most used individual resource of the attestation kernel. A RAMB18 
 
 BRAM usage is not the limiting factor for how many attestation kernels can fit on the FPGA.
 
-## Flip-flops
+## Registers
 
 - Whole design without attestation kernel: 14.08%
-- Attestation kernel: 2.18
+- Attestation kernel: 2.18%
 
 ## LUTs
 
