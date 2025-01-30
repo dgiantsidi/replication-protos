@@ -55,5 +55,6 @@ We pin E810-port to DPDK-driver (igb_uio or vfio-pci).
 ```
 https://172.24.90.7/restgui/index.html?69691754c25fcef72ae5a039db28f841#/
 ```
-## openssl w/o hw-based accelaration
+
+## TODO: check perf variations with openssl w/o hw-based accelaration
 ```openssl-1.1.0l ./config no-async no-dso no-asm no-engine no-hw --prefix=$(realpath install_dir_no_asm)```
